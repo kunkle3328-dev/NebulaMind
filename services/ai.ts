@@ -34,6 +34,75 @@ const fileToBase64 = (file: File): Promise<string> => {
   });
 };
 
+// Helper to generate a standalone HTML presentation from deck data
+const generateSlideDeckHtml = (deck: any): string => {
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${deck.deckTitle}</title>
+    <style>
+        :root { --primary: #38bdf8; --bg: #0f172a; --text: #f8fafc; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); overflow: hidden; }
+        .slide-container { position: relative; width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .slide { position: absolute; opacity: 0; transition: all 0.5s ease-in-out; transform: translateY(20px); width: 80%; max-width: 1000px; text-align: center; }
+        .slide.active { opacity: 1; transform: translateY(0); z-index: 10; }
+        h1 { font-size: 3.5rem; color: var(--primary); margin-bottom: 0.5em; text-shadow: 0 0 20px rgba(56, 189, 248, 0.3); }
+        ul { text-align: left; display: inline-block; font-size: 1.8rem; line-height: 1.6; list-style-type: none; padding: 0; }
+        li { margin-bottom: 15px; padding-left: 30px; position: relative; }
+        li::before { content: "•"; color: var(--primary); position: absolute; left: 0; font-size: 2rem; line-height: 1.8rem; }
+        .controls { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; z-index: 20; }
+        button { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 12px 24px; border-radius: 30px; cursor: pointer; transition: all 0.2s; backdrop-filter: blur(10px); }
+        button:hover { background: rgba(255,255,255,0.2); transform: scale(1.05); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .progress { position: fixed; top: 0; left: 0; height: 4px; background: var(--primary); transition: width 0.3s; }
+        .notes { position: fixed; bottom: 30px; right: 30px; font-size: 0.9rem; color: #94a3b8; max-width: 300px; text-align: right; font-style: italic; }
+    </style>
+</head>
+<body>
+    <div class="progress" id="progressBar"></div>
+    <div class="slide-container" id="container"></div>
+    <div class="controls">
+        <button onclick="prev()">Previous</button>
+        <button onclick="next()">Next</button>
+    </div>
+    <div class="notes" id="notes"></div>
+
+    <script>
+        const deck = ${JSON.stringify(deck)};
+        let current = 0;
+        const container = document.getElementById('container');
+        const notes = document.getElementById('notes');
+        const progressBar = document.getElementById('progressBar');
+
+        function render() {
+            container.innerHTML = '';
+            deck.slides.forEach((slide, index) => {
+                const div = document.createElement('div');
+                div.className = \`slide \${index === current ? 'active' : ''}\`;
+                div.innerHTML = \`<h1>\${slide.slideTitle}</h1><ul>\${slide.bulletPoints.map(p => \`<li>\${p}</li>\`).join('')}</ul>\`;
+                container.appendChild(div);
+            });
+            notes.innerText = deck.slides[current].speakerNotes;
+            progressBar.style.width = \`\${((current + 1) / deck.slides.length) * 100}%\`;
+        }
+        
+        function next() { if(current < deck.slides.length - 1) { current++; render(); } }
+        function prev() { if(current > 0) { current--; render(); } }
+        
+        document.addEventListener('keydown', (e) => {
+            if(e.key === 'ArrowRight' || e.key === ' ') next();
+            if(e.key === 'ArrowLeft') prev();
+        });
+
+        render();
+    </script>
+</body>
+</html>`;
+};
+
 // ---------------------------------------------------------
 // SOURCE INGESTION
 // ---------------------------------------------------------
@@ -172,19 +241,19 @@ export const generateArtifact = async (
       // 1. Generate a specialized prompt for the image model based on sources
       const promptGenResponse = await ai.models.generateContent({
           model: MODEL_TEXT,
-          contents: `You are an expert data visualization designer. 
-          Based on the following context, write a detailed image generation prompt to create a high-quality, professional infographic.
+          contents: `You are an award-winning information designer. 
+          Based on the following context, write a highly detailed image generation prompt to create a professional, data-rich infographic.
           
-          The infographic should:
-          - Visually summarize the key points of the context.
-          - Use a "Dark Mode" aesthetic with neon cyan and deep blue accents (Cyberpunk/Futuristic interface style).
-          - Be clean, vector-style, and flat.
-          - Include charts, icons, and structured text layouts.
+          The infographic description should specify:
+          - A high-tech, dark mode "Cyberpunk/Futuristic" aesthetic with neon accents.
+          - Clear sections, charts, statistical highlights, and iconography.
+          - High resolution, vector art style, clean typography, 8k render.
+          - Avoid generic stock art; focus on "data visualization" and "schematic layouts".
           
           CONTEXT:
-          ${context.substring(0, 20000)}
+          ${context.substring(0, 15000)}
           
-          Output ONLY the prompt string to feed into the image generator.`
+          Output ONLY the prompt string.`
       });
       
       const imagePrompt = promptGenResponse.text || "A professional infographic summarizing research data, dark mode, neon style.";
@@ -293,7 +362,14 @@ export const generateArtifact = async (
     }
   });
 
-  return response.text ? JSON.parse(response.text) : null;
+  const content = response.text ? JSON.parse(response.text) : null;
+  
+  // If it's a slide deck, enrich it with the HTML version
+  if (type === 'slideDeck' && content) {
+      content.html = generateSlideDeckHtml(content);
+  }
+
+  return content;
 };
 
 // Generates the textual script AND audio for the Audio Overview
@@ -312,9 +388,18 @@ export const generateAudioOverview = async (
     if (onProgress) onProgress("Drafting conversation script from sources...");
 
     const scriptPrompt = `
-    Create a professional podcast script between two hosts (Joe and Jane) discussing the following material. 
-    Make it engaging, conversational, and ${durationInstruction}.
-    Joe is the main host (Male, deep voice), Jane is the co-host (Female, clear voice).
+    Create a highly engaging, human-like podcast script between two hosts (Joe and Jane) discussing the provided material.
+    
+    HOST PERSONALITIES:
+    - Joe (Male): The skeptic, witty, slightly cynical but curious. Loves to ask "But why?" and make small jokes. Uses analogies.
+    - Jane (Female): The expert, insightful, empathetic, enthusiastic. She patiently explains complex ideas and connects the dots.
+    
+    INSTRUCTIONS:
+    - Make it sound REAL. Use natural speech patterns, interjections, and banter.
+    - Include disfluencies like "um", "like", "you know" sparingly to sound authentic.
+    - Have them interrupt each other occasionally or finish each other's sentences.
+    - Use emotional cues like [laughs], [sighs], [excitedly].
+    - Length: ${durationInstruction}.
     
     IMPORTANT FORMATTING:
     Output the script as a dialogue where Joe and Jane take turns. 
@@ -348,13 +433,13 @@ export const generateAudioOverview = async (
                     {
                         speaker: 'Joe',
                         voiceConfig: {
-                          prebuiltVoiceConfig: { voiceName: 'Fenrir' } // Supported deep male voice
+                          prebuiltVoiceConfig: { voiceName: 'Orus' } // New male voice
                         }
                     },
                     {
                         speaker: 'Jane',
                         voiceConfig: {
-                          prebuiltVoiceConfig: { voiceName: 'Zephyr' } // Clear female voice
+                          prebuiltVoiceConfig: { voiceName: 'Zephyr' } // New female voice
                         }
                     }
               ]

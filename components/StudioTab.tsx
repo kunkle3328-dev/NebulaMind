@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Notebook, Artifact } from '../types';
-import { Mic, Headphones, FileText, HelpCircle, Layout, Presentation, Play, Pause, Loader2, X, Download, Wand2, Activity, Sparkles, ChevronRight, ChevronLeft, Maximize2, Minimize2, Monitor, AlertCircle } from 'lucide-react';
+import { Mic, Headphones, FileText, HelpCircle, Layout, Presentation, Play, Pause, Loader2, X, Download, Wand2, Activity, Sparkles, ChevronRight, ChevronLeft, Maximize2, Minimize2, Monitor, AlertCircle, Share2, FileCode } from 'lucide-react';
 import LiveSession from './LiveSession';
 import { useTheme, useJobs } from '../App';
 
@@ -38,8 +38,12 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
     setShowAudioConfig(false);
   };
 
+  const handleShareArtifact = (artifact: Artifact) => {
+      // Simulating share
+      alert(`Shared "${artifact.title}" to clipboard!`);
+  };
+
   const AudioPlayerVisualizer = ({ audioUrl }: { audioUrl: string }) => {
-      // ... (Same Visualizer Code as before)
       const audioRef = useRef<HTMLAudioElement | null>(null);
       const canvasRef = useRef<HTMLCanvasElement | null>(null);
       const audioCtxRef = useRef<AudioContext | null>(null);
@@ -94,15 +98,15 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
           setIsPlaying(!isPlaying);
       };
 
-      // Determine Visualizer Colors based on Theme including new premium themes
+      // Determine Visualizer Colors based on Theme
       let primaryColorHex = '#22d3ee'; // Default Cyan
       let secondaryColorHex = '#3b82f6'; // Default Blue
 
       if (theme.id === 'obsidian') { primaryColorHex = '#f59e0b'; secondaryColorHex = '#ea580c'; }
       if (theme.id === 'arctic') { primaryColorHex = '#38bdf8'; secondaryColorHex = '#818cf8'; }
-      if (theme.id === 'quantum') { primaryColorHex = '#8b5cf6'; secondaryColorHex = '#d946ef'; } // Violet / Fuchsia
-      if (theme.id === 'gilded') { primaryColorHex = '#10b981'; secondaryColorHex = '#fbbf24'; } // Emerald / Gold
-      if (theme.id === 'crimson') { primaryColorHex = '#ef4444'; secondaryColorHex = '#f43f5e'; } // Red / Rose
+      if (theme.id === 'quantum') { primaryColorHex = '#8b5cf6'; secondaryColorHex = '#d946ef'; }
+      if (theme.id === 'gilded') { primaryColorHex = '#10b981'; secondaryColorHex = '#fbbf24'; }
+      if (theme.id === 'crimson') { primaryColorHex = '#ef4444'; secondaryColorHex = '#f43f5e'; }
 
       useEffect(() => {
           let animationId: number;
@@ -182,7 +186,7 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
               
               ctx.beginPath();
               ctx.arc(centerX, centerY, radius - 15, 0, Math.PI * 2);
-              ctx.strokeStyle = `${primaryColorHex}26`; // 15% opacity
+              ctx.strokeStyle = `${primaryColorHex}26`; 
               ctx.lineWidth = 1;
               ctx.stroke();
 
@@ -206,11 +210,12 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
       };
 
       return (
-          <div className="flex flex-col items-center gap-8 w-full max-w-md mx-auto">
+          <div className="flex flex-col items-center gap-8 w-full max-w-md mx-auto py-8">
               <audio ref={audioRef} crossOrigin="anonymous" className="hidden" />
               
-              <div className="relative w-[340px] h-[340px] flex items-center justify-center">
+              <div className="relative w-[300px] h-[300px] flex items-center justify-center">
                   <div className={`absolute inset-0 bg-${theme.colors.primary}-500/10 blur-[80px] rounded-full transition-opacity duration-700 ${isPlaying ? 'opacity-100 scale-110' : 'opacity-50 scale-100'}`}></div>
+                  <div className="absolute inset-4 rounded-full border border-white/5 bg-slate-900/40 backdrop-blur-sm z-0"></div>
                   <canvas ref={canvasRef} width={340} height={340} className="relative z-10" />
                   <button 
                       onClick={togglePlay}
@@ -220,12 +225,12 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
                   </button>
               </div>
 
-              <div className="w-full space-y-2 px-4">
-                  <div className="flex justify-between text-xs text-slate-400 font-mono tracking-widest">
+              <div className="w-full space-y-3 px-6 bg-slate-900/50 p-4 rounded-2xl border border-white/5 backdrop-blur-sm">
+                  <div className="flex justify-between text-xs text-slate-400 font-mono tracking-widest uppercase">
                       <span>{formatTime(currentTime)}</span>
                       <span>{formatTime(duration)}</span>
                   </div>
-                  <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden cursor-pointer" onClick={(e) => {
+                  <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden cursor-pointer relative" onClick={(e) => {
                       if(audioRef.current && duration) {
                           const rect = e.currentTarget.getBoundingClientRect();
                           const pos = (e.clientX - rect.left) / rect.width;
@@ -233,20 +238,18 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
                       }
                   }}>
                       <div 
-                          className={`h-full bg-gradient-to-r from-${theme.colors.primary}-400 to-${theme.colors.secondary}-500 shadow-[0_0_10px_rgba(var(--color-${theme.colors.primary}),0.5)] transition-all duration-100`}
+                          className={`h-full bg-gradient-to-r from-${theme.colors.primary}-400 to-${theme.colors.secondary}-500 shadow-[0_0_10px_rgba(var(--color-${theme.colors.primary}),0.5)] transition-all duration-100 relative`}
                           style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
-                      ></div>
+                      >
+                          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg scale-0 group-hover:scale-100 transition-transform"></div>
+                      </div>
                   </div>
               </div>
           </div>
       );
   };
   
-  // ... (SlidePlayer and ArtifactModal components remain largely same, but need to be included in output if modified, 
-  // keeping them brief here for focus on changes. Assuming they are inside the file content below.)
-
   const SlidePlayer = ({ deck }: { deck: any }) => {
-    // ... (Same as before)
      const [currentSlide, setCurrentSlide] = useState(0);
       const [showNotes, setShowNotes] = useState(false);
       const [isFullscreen, setIsFullscreen] = useState(false);
@@ -254,7 +257,16 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
       const nextSlide = () => setCurrentSlide(prev => Math.min(prev + 1, deck.slides.length - 1));
       const prevSlide = () => setCurrentSlide(prev => Math.max(prev - 1, 0));
       
-      const downloadHtml = () => { /* ... existing download logic ... */ };
+      const downloadHtml = () => {
+         if (!deck.html) return;
+         const blob = new Blob([deck.html], { type: 'text/html' });
+         const url = URL.createObjectURL(blob);
+         const a = document.createElement('a');
+         a.href = url;
+         a.download = `${deck.deckTitle.replace(/\s+/g, '_')}_Presentation.html`;
+         a.click();
+         URL.revokeObjectURL(url);
+      };
 
       const slide = deck.slides[currentSlide];
 
@@ -266,6 +278,15 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
                       {deck.deckTitle}
                   </h4>
                   <div className="flex items-center gap-2">
+                       {/* Export HTML Button */}
+                      <button 
+                        onClick={downloadHtml}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition-colors border border-white/5"
+                        title="Download Standalone HTML Presentation"
+                      >
+                          <FileCode size={14} />
+                          Export HTML
+                      </button>
                       <button onClick={() => setIsFullscreen(!isFullscreen)} className="p-2 hover:bg-white/5 rounded-lg text-slate-400">
                           {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
                       </button>
@@ -300,16 +321,19 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
   };
   
   const ArtifactModal = ({ artifact, onClose, onJoinLive }: { artifact: Artifact; onClose: () => void; onJoinLive: () => void }) => {
-     // ... (Same Artifact Modal logic using createPortal)
      const modalContent = (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-md z-[9999] flex items-center justify-center p-4">
             <div className={`glass-panel w-full ${artifact.type === 'slideDeck' ? 'max-w-7xl h-[90vh]' : 'max-w-5xl h-[85vh]'} rounded-3xl flex flex-col animate-in fade-in zoom-in-95 duration-200 border border-white/10 shadow-2xl overflow-hidden`}>
                 <div className="flex justify-between items-center p-6 border-b border-white/10 bg-slate-900/50 shrink-0">
                     <h3 className="text-xl font-bold flex items-center gap-3 text-white">
-                       {/* Icons ... */}
                         {artifact.title}
                     </h3>
-                    <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors"><X size={24}/></button>
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => handleShareArtifact(artifact)} className="p-2 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors">
+                            <Share2 size={20} />
+                        </button>
+                        <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors"><X size={24}/></button>
+                    </div>
                 </div>
                 
                 <div className={`flex-1 bg-slate-950/50 min-h-0 ${artifact.type === 'audioOverview' || artifact.type === 'slideDeck' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
@@ -327,22 +351,58 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
                                     </button>
                                 </div>
                             </div>
-                            <div className="p-6 md:p-8 overflow-y-auto h-full bg-slate-950">
-                                <div className="space-y-4 text-sm leading-relaxed text-slate-300 font-mono pb-8">
+                            <div className="p-0 overflow-y-auto h-full bg-slate-950 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
+                                <div className="p-8 space-y-6">
                                     {artifact.content.script.split('\n').map((line: string, i: number) => {
-                                        const [speaker, ...text] = line.split(':');
-                                        if (text.length > 0) return <div key={i}><span className="font-bold">{speaker}</span>: {text.join(':')}</div>;
-                                        return null;
+                                        const parts = line.split(':');
+                                        const speaker = parts[0];
+                                        const text = parts.slice(1).join(':').trim();
+                                        
+                                        if (!text) return null;
+
+                                        const isJoe = speaker.toLowerCase().includes('joe');
+                                        const colorClass = isJoe ? `text-${theme.colors.primary}-400` : `text-${theme.colors.secondary}-400`;
+                                        const alignClass = isJoe ? 'items-start' : 'items-end';
+                                        
+                                        return (
+                                            <div key={i} className={`flex flex-col gap-1 ${alignClass} group`}>
+                                                <span className={`text-xs font-bold uppercase tracking-wider ${colorClass} opacity-70 group-hover:opacity-100 transition-opacity`}>
+                                                    {speaker}
+                                                </span>
+                                                <div className={`p-4 rounded-2xl max-w-[90%] text-base leading-relaxed ${isJoe ? 'bg-slate-900/60 rounded-tl-none border border-white/5' : 'bg-slate-800/40 rounded-tr-none border border-white/5'} text-slate-200 hover:bg-slate-800/60 transition-colors`}>
+                                                    {text}
+                                                </div>
+                                            </div>
+                                        );
                                     })}
                                 </div>
                             </div>
                         </div>
                     )}
                     
-                    {/* Simplified for brevity - assume other types render as before */}
-                    {artifact.type === 'infographic' && <img src={artifact.content.imageUrl} className="w-full" />}
+                    {/* Infographic Renderer */}
+                    {artifact.type === 'infographic' && (
+                        <div className="flex flex-col items-center p-8 gap-4">
+                            <img src={artifact.content.imageUrl} className="w-full max-w-4xl rounded-lg shadow-2xl border border-white/10" alt="Generated Infographic" />
+                            <a 
+                                href={artifact.content.imageUrl} 
+                                download="infographic.png"
+                                className={`flex items-center gap-2 px-6 py-3 bg-${theme.colors.primary}-600 hover:bg-${theme.colors.primary}-500 text-white rounded-xl font-bold shadow-lg mt-4`}
+                            >
+                                <Download size={18} /> Download Image
+                            </a>
+                        </div>
+                    )}
+
+                    {/* Slide Deck Player */}
                     {artifact.type === 'slideDeck' && <SlidePlayer deck={artifact.content} />}
-                    {/* ... etc ... */}
+                    
+                    {/* Fallback for others */}
+                    {(artifact.type === 'flashcards' || artifact.type === 'quiz') && (
+                        <div className="p-8">
+                            <pre className="text-xs text-slate-400 overflow-auto">{JSON.stringify(artifact.content, null, 2)}</pre>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -515,14 +575,26 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
                                 </div>
                             </div>
                         </div>
-                        {art.status === 'completed' && (
-                            <button 
-                                onClick={() => setViewingArtifact(art)}
-                                className={`px-4 py-2 bg-slate-800 hover:bg-${theme.colors.primary}-500 hover:text-white rounded-lg text-sm font-medium transition-all text-slate-400 border border-white/5 hover:border-${theme.colors.primary}-500/50`}
-                            >
-                                View
-                            </button>
-                        )}
+                        <div className="flex items-center gap-2">
+                             {/* Share Button for Artifacts */}
+                             {art.status === 'completed' && (
+                                <button 
+                                    onClick={() => handleShareArtifact(art)}
+                                    className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition-colors border border-white/5"
+                                    title="Share"
+                                >
+                                    <Share2 size={16} />
+                                </button>
+                             )}
+                             {art.status === 'completed' && (
+                                <button 
+                                    onClick={() => setViewingArtifact(art)}
+                                    className={`px-4 py-2 bg-slate-800 hover:bg-${theme.colors.primary}-500 hover:text-white rounded-lg text-sm font-medium transition-all text-slate-400 border border-white/5 hover:border-${theme.colors.primary}-500/50`}
+                                >
+                                    View
+                                </button>
+                            )}
+                        </div>
                         {art.status === 'failed' && (
                             <div className="px-4 py-2 text-red-500 text-sm flex items-center gap-2">
                                 <AlertCircle size={16} /> Error

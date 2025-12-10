@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { Notebook, Source } from '../types';
-import { ArrowLeft, MessageSquare, Layers, FolderOpen, Palette, ChevronLeft, ChevronRight, Edit2, Check, X } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Layers, FolderOpen, Palette, ChevronLeft, ChevronRight, Edit2, Check, X, Share2, Copy } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import SourcesTab from './SourcesTab';
 import ChatTab from './ChatTab';
 import StudioTab from './StudioTab';
-import { useTheme, NebulaLogo } from '../App';
+import { useTheme, NebulaLogo, useJobs } from '../App';
 import { THEMES } from '../constants';
 
 interface Props {
@@ -21,6 +21,7 @@ const NotebookView: React.FC<Props> = ({ notebook, onUpdate }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const { theme, setThemeId } = useTheme();
   const [showThemeMenu, setShowThemeMenu] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   
   // Title Editing State
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -55,18 +56,20 @@ const NotebookView: React.FC<Props> = ({ notebook, onUpdate }) => {
     onUpdate(updated);
   };
 
+  const handleShare = () => {
+      // Simulation of sharing
+      navigator.clipboard.writeText(`https://nebulamind.ai/notebook/${notebook.id}`);
+      // In a real app, this would use the JobContext notification, but for local comp:
+      alert("Notebook link copied to clipboard!");
+      setShowShareModal(false);
+  };
+
   return (
     <div className={`min-h-screen ${theme.colors.background} ${theme.colors.text} flex flex-col md:flex-row transition-colors duration-700`}>
-      {/* Mobile Header */}
-      <div className="md:hidden glass-panel p-4 flex justify-between items-center sticky top-0 z-50 border-b border-white/5">
-        <Link to="/" className="text-slate-400 hover:text-white"><ArrowLeft /></Link>
-        <h1 className="font-semibold truncate max-w-[200px]">{notebook.title}</h1>
-        <div className="w-6" />
-      </div>
-
+      
       {/* Sidebar (Desktop) */}
       <nav className={`
-        fixed bottom-0 left-0 w-full h-16 glass-panel border-t border-white/10 z-40
+        fixed bottom-0 left-0 w-full h-16 glass-panel border-t border-white/10 z-50
         md:relative md:h-screen md:border-t-0 md:border-r md:flex md:flex-col
         transition-all duration-300 bg-black/20 backdrop-blur-xl
         ${isSidebarCollapsed ? 'md:w-20' : 'md:w-72'}
@@ -206,11 +209,51 @@ const NotebookView: React.FC<Props> = ({ notebook, onUpdate }) => {
         {theme.id === 'gilded' && <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-emerald-900/10 rounded-full blur-[100px] pointer-events-none"></div>}
         {theme.id === 'crimson' && <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-rose-900/10 rounded-full blur-[120px] pointer-events-none animate-pulse-slow"></div>}
         
+        {/* Global App Header - Simplified (Only Share) */}
+        <header className="sticky top-0 z-30 px-8 py-4 flex justify-end items-center backdrop-blur-md border-b border-white/5 bg-black/20 h-16">
+            <div className="flex items-center gap-4">
+                 <button 
+                    onClick={() => setShowShareModal(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-full text-sm font-medium text-slate-300 hover:text-white transition-all border border-white/5"
+                 >
+                    <Share2 size={16} />
+                    Share Notebook
+                 </button>
+                 <Link to="/" className="md:hidden p-2 rounded-full hover:bg-white/10 text-slate-400 hover:text-white">
+                     <ArrowLeft size={20} />
+                 </Link>
+            </div>
+        </header>
+
         <div className="max-w-6xl mx-auto p-4 md:p-8 pb-24 md:pb-8 relative z-10">
             {activeTab === 'sources' && <SourcesTab sources={notebook.sources} onAddSource={addSource} onDeleteSource={deleteSource} />}
             {activeTab === 'chat' && <ChatTab notebook={notebook} />}
             {activeTab === 'studio' && <StudioTab notebook={notebook} onUpdate={onUpdate} />}
         </div>
+
+        {/* Share Modal */}
+        {showShareModal && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                <div className="glass-panel w-full max-w-md p-6 rounded-2xl border border-white/10 shadow-2xl animate-in fade-in zoom-in-95">
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-xl font-bold text-white flex items-center gap-2"><Share2 size={20}/> Share Notebook</h3>
+                        <button onClick={() => setShowShareModal(false)} className="text-slate-400 hover:text-white"><X size={20}/></button>
+                    </div>
+                    <div className="space-y-4">
+                        <p className="text-slate-400 text-sm">Anyone with the link can view this notebook.</p>
+                        <div className="flex items-center gap-2 bg-black/50 p-3 rounded-lg border border-white/10">
+                            <span className="text-slate-300 text-sm truncate flex-1">https://nebulamind.ai/notebook/{notebook.id}</span>
+                            <button onClick={handleShare} className={`text-${theme.colors.primary}-400 hover:text-${theme.colors.primary}-300 p-2 hover:bg-white/5 rounded-lg transition-colors`}>
+                                <Copy size={16} />
+                            </button>
+                        </div>
+                        <button onClick={handleShare} className={`w-full py-3 bg-${theme.colors.primary}-600 hover:bg-${theme.colors.primary}-500 text-white rounded-xl font-bold mt-4 shadow-lg shadow-${theme.colors.primary}-900/20`}>
+                            Copy Link
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
       </main>
     </div>
   );
