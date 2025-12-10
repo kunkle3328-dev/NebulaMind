@@ -357,7 +357,7 @@ const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             try {
                 let content;
                 if (type === 'audioOverview') {
-                    content = await generateAudioOverview(sources, config?.length);
+                    content = await generateAudioOverview(sources, config?.length, config?.mode);
                 } else {
                     content = await generateArtifact(type, sources);
                 }

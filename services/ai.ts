@@ -108,52 +108,67 @@ const generateSlideDeckHtml = (deck: any): string => {
 // ---------------------------------------------------------
 
 export const processFileWithGemini = async (file: File, mimeType: string): Promise<string> => {
-    const base64Data = await fileToBase64(file);
-    
-    let prompt = "Extract all text from this document. Preserve formatting where possible.";
-    if (mimeType.startsWith('audio/')) {
-        prompt = "Transcribe this audio file verbatim. Identify speakers if possible.";
-    } else if (mimeType.startsWith('image/')) {
-        prompt = "Extract all visible text from this image. Describe any charts or diagrams in detail.";
-    }
-
-    const response = await ai.models.generateContent({
-        model: MODEL_TEXT,
-        contents: {
-            parts: [
-                { inlineData: { mimeType, data: base64Data } },
-                { text: prompt }
-            ]
+    try {
+        const base64Data = await fileToBase64(file);
+        
+        let prompt = "Extract all text from this document. Preserve formatting where possible.";
+        if (mimeType.startsWith('audio/')) {
+            prompt = "Transcribe this audio file verbatim. Identify speakers if possible.";
+        } else if (mimeType.startsWith('image/')) {
+            prompt = "Extract all visible text from this image. Describe any charts or diagrams in detail.";
         }
-    });
 
-    return response.text || "No text extracted.";
+        const response = await ai.models.generateContent({
+            model: MODEL_TEXT,
+            contents: {
+                parts: [
+                    { inlineData: { mimeType, data: base64Data } },
+                    { text: prompt }
+                ]
+            }
+        });
+
+        return response.text || "No text extracted.";
+    } catch (error: any) {
+        console.error("Gemini File Processing Error:", error);
+        throw new Error(`Failed to process file: ${error.message || "Network error. Please check your connection."}`);
+    }
+};
+
+const parseHtmlContent = (html: string) => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const scripts = doc.querySelectorAll('script, style, noscript, iframe, svg, nav, footer, header');
+    scripts.forEach(s => s.remove());
+    return doc.body.innerText.replace(/\s+/g, ' ').trim().substring(0, 50000);
 };
 
 export const fetchWebsiteContent = async (url: string): Promise<string> => {
-    // Use a CORS proxy to fetch the HTML content
-    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
-    
+    // Attempt 1: corsproxy.io
     try {
+        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
         const response = await fetch(proxyUrl);
-        if (!response.ok) throw new Error("Failed to fetch website");
-        const html = await response.text();
-        
-        // Parse HTML and extract text
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, 'text/html');
-        
-        // Remove scripts, styles, and other non-text elements
-        const scripts = doc.querySelectorAll('script, style, noscript, iframe, svg');
-        scripts.forEach(s => s.remove());
-        
-        // Get text content and clean it up
-        const text = doc.body.innerText;
-        return text.replace(/\s+/g, ' ').trim().substring(0, 50000); // Limit to ~50k chars
-    } catch (error) {
-        console.error("Website fetch error:", error);
-        throw new Error("Could not fetch website content. It might be blocked or require a login.");
+        if (response.ok) {
+            const html = await response.text();
+            return parseHtmlContent(html);
+        }
+    } catch (e) {
+        console.warn("Primary CORS proxy failed, trying fallback...", e);
     }
+
+    // Attempt 2: allorigins.win (Fallback)
+    try {
+        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+        const response = await fetch(proxyUrl);
+        if (response.ok) {
+            const html = await response.text();
+            return parseHtmlContent(html);
+        }
+    } catch (e) {
+        console.error("Fallback CORS proxy failed", e);
+    }
+
+    throw new Error("Could not fetch website content. The site may be blocking automated access or forcing CORS.");
 };
 
 // ---------------------------------------------------------
@@ -210,24 +225,29 @@ export const generateAnswer = async (
 };
 
 export const speakText = async (text: string): Promise<string> => {
-  const response = await ai.models.generateContent({
-    model: MODEL_TTS,
-    contents: [{ parts: [{ text: text }] }],
-    config: {
-      responseModalities: [Modality.AUDIO],
-      speechConfig: {
-        voiceConfig: {
-          prebuiltVoiceConfig: { voiceName: 'Aoede' } // Premium human-like female voice
+  try {
+      const response = await ai.models.generateContent({
+        model: MODEL_TTS,
+        contents: [{ parts: [{ text: text }] }],
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: 'Aoede' } // Premium human-like female voice
+            }
+          }
         }
-      }
-    }
-  });
+      });
 
-  const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-  if (!base64Audio) throw new Error("Failed to generate speech");
+      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (!base64Audio) throw new Error("Failed to generate speech data");
 
-  const pcmBytes = base64ToUint8Array(base64Audio);
-  return createWavUrl(pcmBytes, 24000);
+      const pcmBytes = base64ToUint8Array(base64Audio);
+      return createWavUrl(pcmBytes, 24000);
+  } catch (error: any) {
+      console.error("TTS Error:", error);
+      throw new Error("Speech generation failed.");
+  }
 };
 
 export const generateArtifact = async (
@@ -236,146 +256,152 @@ export const generateArtifact = async (
 ) => {
   const context = formatContext(sources);
   
-  // INFOGRAPHIC: Image Generation
-  if (type === 'infographic') {
-      // 1. Generate a specialized prompt for the image model based on sources
-      const promptGenResponse = await ai.models.generateContent({
-          model: MODEL_TEXT,
-          contents: `You are an award-winning information designer. 
-          Based on the following context, write a highly detailed image generation prompt to create a professional, data-rich infographic.
+  try {
+      // INFOGRAPHIC: Image Generation
+      if (type === 'infographic') {
+          // 1. Generate a specialized prompt for the image model based on sources
+          const promptGenResponse = await ai.models.generateContent({
+              model: MODEL_TEXT,
+              contents: `You are an award-winning information designer. 
+              Based on the following context, write a highly detailed image generation prompt to create a professional, data-rich infographic.
+              
+              The infographic description should specify:
+              - A high-tech, dark mode "Cyberpunk/Futuristic" aesthetic with neon accents.
+              - Clear sections, charts, statistical highlights, and iconography.
+              - High resolution, vector art style, clean typography, 8k render.
+              - Avoid generic stock art; focus on "data visualization" and "schematic layouts".
+              
+              CONTEXT:
+              ${context.substring(0, 15000)}
+              
+              Output ONLY the prompt string.`
+          });
           
-          The infographic description should specify:
-          - A high-tech, dark mode "Cyberpunk/Futuristic" aesthetic with neon accents.
-          - Clear sections, charts, statistical highlights, and iconography.
-          - High resolution, vector art style, clean typography, 8k render.
-          - Avoid generic stock art; focus on "data visualization" and "schematic layouts".
-          
-          CONTEXT:
-          ${context.substring(0, 15000)}
-          
-          Output ONLY the prompt string.`
-      });
-      
-      const imagePrompt = promptGenResponse.text || "A professional infographic summarizing research data, dark mode, neon style.";
+          const imagePrompt = promptGenResponse.text || "A professional infographic summarizing research data, dark mode, neon style.";
 
-      // 2. Generate the Image
-      const imageResponse = await ai.models.generateContent({
-          model: MODEL_IMAGE,
-          contents: { parts: [{ text: imagePrompt }] },
-          config: {
-              // Nano Banana models don't use responseMimeType
-          }
-      });
+          // 2. Generate the Image
+          const imageResponse = await ai.models.generateContent({
+              model: MODEL_IMAGE,
+              contents: { parts: [{ text: imagePrompt }] },
+              config: {
+                  // Nano Banana models don't use responseMimeType
+              }
+          });
 
-      let base64Image = null;
-      if (imageResponse.candidates?.[0]?.content?.parts) {
-          for (const part of imageResponse.candidates[0].content.parts) {
-              if (part.inlineData) {
-                  base64Image = part.inlineData.data;
-                  break;
+          let base64Image = null;
+          if (imageResponse.candidates?.[0]?.content?.parts) {
+              for (const part of imageResponse.candidates[0].content.parts) {
+                  if (part.inlineData) {
+                      base64Image = part.inlineData.data;
+                      break;
+                  }
               }
           }
+
+          if (!base64Image) throw new Error("Failed to generate infographic image");
+
+          return {
+              imageUrl: `data:image/png;base64,${base64Image}`,
+              prompt: imagePrompt
+          };
       }
 
-      if (!base64Image) throw new Error("Failed to generate infographic image");
+      // OTHER TYPES: Text/JSON Generation
+      let prompt = "";
+      let schema: any = {};
 
-      return {
-          imageUrl: `data:image/png;base64,${base64Image}`,
-          prompt: imagePrompt
-      };
-  }
-
-  // OTHER TYPES: Text/JSON Generation
-  let prompt = "";
-  let schema: any = {};
-
-  switch (type) {
-    case 'flashcards':
-      prompt = "Generate 5-10 flashcards (term and definition) based on the context.";
-      schema = {
-        type: Type.OBJECT,
-        properties: {
-          cards: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                term: { type: Type.STRING },
-                definition: { type: Type.STRING },
-              },
-              required: ['term', 'definition']
-            }
-          }
-        }
-      };
-      break;
-    case 'quiz':
-      prompt = "Generate a quiz with 3 multiple choice questions based on the context.";
-      schema = {
-        type: Type.OBJECT,
-        properties: {
-          title: { type: Type.STRING },
-          questions: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                question: { type: Type.STRING },
-                options: { type: Type.ARRAY, items: { type: Type.STRING } },
-                correctAnswerIndex: { type: Type.INTEGER },
-                explanation: { type: Type.STRING }
-              },
-              required: ['question', 'options', 'correctAnswerIndex']
-            }
-          }
-        }
-      };
-      break;
-      case 'slideDeck':
-        prompt = "Create a comprehensive slide deck outline (6-10 slides). Include a catchy title, clear bullet points, and speaker notes for each slide. The content should be educational and professional.";
-        schema = {
+      switch (type) {
+        case 'flashcards':
+          prompt = "Generate 5-10 flashcards (term and definition) based on the context.";
+          schema = {
             type: Type.OBJECT,
             properties: {
-                deckTitle: { type: Type.STRING },
-                slides: {
-                    type: Type.ARRAY,
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            slideTitle: {type: Type.STRING},
-                            bulletPoints: {type: Type.ARRAY, items: {type: Type.STRING}},
-                            speakerNotes: {type: Type.STRING}
+              cards: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    term: { type: Type.STRING },
+                    definition: { type: Type.STRING },
+                  },
+                  required: ['term', 'definition']
+                }
+              }
+            }
+          };
+          break;
+        case 'quiz':
+          prompt = "Generate a quiz with 3 multiple choice questions based on the context.";
+          schema = {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              questions: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    question: { type: Type.STRING },
+                    options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    correctAnswerIndex: { type: Type.INTEGER },
+                    explanation: { type: Type.STRING }
+                  },
+                  required: ['question', 'options', 'correctAnswerIndex']
+                }
+              }
+            }
+          };
+          break;
+          case 'slideDeck':
+            prompt = "Create a comprehensive slide deck outline (6-10 slides). Include a catchy title, clear bullet points, and speaker notes for each slide. The content should be educational and professional.";
+            schema = {
+                type: Type.OBJECT,
+                properties: {
+                    deckTitle: { type: Type.STRING },
+                    slides: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                slideTitle: {type: Type.STRING},
+                                bulletPoints: {type: Type.ARRAY, items: {type: Type.STRING}},
+                                speakerNotes: {type: Type.STRING}
+                            }
                         }
                     }
                 }
-            }
-        };
-        break;
+            };
+            break;
+      }
+
+      const response = await ai.models.generateContent({
+        model: MODEL_REASONING,
+        contents: `${prompt}\n\nCONTEXT:\n${context}`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: schema,
+        }
+      });
+
+      const content = response.text ? JSON.parse(response.text) : null;
+      
+      // If it's a slide deck, enrich it with the HTML version
+      if (type === 'slideDeck' && content) {
+          content.html = generateSlideDeckHtml(content);
+      }
+
+      return content;
+  } catch (error: any) {
+      console.error("Artifact Generation Error:", error);
+      throw new Error(`Failed to generate ${type}: ${error.message || "Unknown error"}`);
   }
-
-  const response = await ai.models.generateContent({
-    model: MODEL_REASONING,
-    contents: `${prompt}\n\nCONTEXT:\n${context}`,
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: schema,
-    }
-  });
-
-  const content = response.text ? JSON.parse(response.text) : null;
-  
-  // If it's a slide deck, enrich it with the HTML version
-  if (type === 'slideDeck' && content) {
-      content.html = generateSlideDeckHtml(content);
-  }
-
-  return content;
 };
 
 // Generates the textual script AND audio for the Audio Overview
 export const generateAudioOverview = async (
     sources: Source[], 
     length: 'Short' | 'Medium' | 'Long' = 'Medium',
+    mode: 'Standard' | 'Learn' = 'Standard',
     onProgress?: (status: string) => void
 ) => {
     const context = formatContext(sources);
@@ -384,86 +410,124 @@ export const generateAudioOverview = async (
     if (length === 'Short') durationInstruction = "about 5-8 minutes long, very concise";
     if (length === 'Long') durationInstruction = "about 10-17 minutes long, going into deep detail";
 
-    // 1. Generate the script text first
-    if (onProgress) onProgress("Drafting conversation script from sources...");
+    try {
+        // 1. Generate the script text first
+        if (onProgress) onProgress("Drafting conversation script from sources...");
 
-    const scriptPrompt = `
-    Create a highly engaging, human-like podcast script between two hosts (Joe and Jane) discussing the provided material.
-    
-    HOST PERSONALITIES:
-    - Joe (Male): The skeptic, witty, slightly cynical but curious. Loves to ask "But why?" and make small jokes. Uses analogies.
-    - Jane (Female): The expert, insightful, empathetic, enthusiastic. She patiently explains complex ideas and connects the dots.
-    
-    INSTRUCTIONS:
-    - Make it sound REAL. Use natural speech patterns, interjections, and banter.
-    - Include disfluencies like "um", "like", "you know" sparingly to sound authentic.
-    - Have them interrupt each other occasionally or finish each other's sentences.
-    - Use emotional cues like [laughs], [sighs], [excitedly].
-    - Length: ${durationInstruction}.
-    
-    IMPORTANT FORMATTING:
-    Output the script as a dialogue where Joe and Jane take turns. 
-    Use a simple format like:
-    Joe: [text]
-    Jane: [text]
-    
-    MATERIAL:
-    ${context}
-    `;
-    
-    const scriptResponse = await ai.models.generateContent({
-        model: MODEL_TEXT,
-        contents: scriptPrompt
-    });
-    
-    const scriptText = scriptResponse.text;
-    if (!scriptText) throw new Error("Failed to generate script");
+        let scriptPrompt = "";
 
-    // 2. Synthesize Audio using Multi-speaker TTS
-    if (onProgress) onProgress("Synthesizing AI host voices (Joe & Jane)...");
-
-    const ttsResponse = await ai.models.generateContent({
-      model: MODEL_TTS,
-      contents: [{ parts: [{ text: scriptText }] }],
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: {
-            multiSpeakerVoiceConfig: {
-              speakerVoiceConfigs: [
-                    {
-                        speaker: 'Joe',
-                        voiceConfig: {
-                          prebuiltVoiceConfig: { voiceName: 'Orus' } // New male voice
-                        }
-                    },
-                    {
-                        speaker: 'Jane',
-                        voiceConfig: {
-                          prebuiltVoiceConfig: { voiceName: 'Zephyr' } // New female voice
-                        }
-                    }
-              ]
-            }
+        if (mode === 'Learn') {
+             scriptPrompt = `
+                Create an educational "Study Guide" podcast script between two hosts (Joe and Jane) teaching the user about the provided material.
+                
+                GOAL: Teach the listener the core concepts from the source material effectively.
+                
+                ROLES:
+                - Jane (Female): The Lead Instructor. Structured, clear, uses examples, checks for understanding. She is the expert.
+                - Joe (Male): The Curious Student/Co-host. Asks clarifying questions, summarizes points to ensure he understands, provides analogies. He is the learner's voice.
+                
+                STRUCTURE:
+                1. Intro: State the topic and specific learning goals for this session.
+                2. Core Concepts: Break down the material into 3-5 key lessons.
+                3. Interaction: Joe should interrupt to ask "Wait, can you explain that simply?" or "So, it's like [analogy]?", and Jane confirms or corrects.
+                4. Recap: Summarize the key takeaways at the end to reinforce learning.
+                
+                TONE: Educational, encouraging, paced for learning, but still conversational and human.
+                Length: ${durationInstruction}.
+                
+                IMPORTANT FORMATTING:
+                Output the script as a dialogue where Joe and Jane take turns. 
+                Use a simple format like:
+                Joe: [text]
+                Jane: [text]
+                
+                MATERIAL:
+                ${context}
+             `;
+        } else {
+            // Standard "Deep Dive" Podcast Mode
+            scriptPrompt = `
+            Create a highly engaging, human-like podcast script between two hosts (Joe and Jane) discussing the provided material.
+            
+            HOST PERSONALITIES:
+            - Joe (Male): The skeptic, witty, slightly cynical but curious. Loves to ask "But why?" and make small jokes. Uses analogies.
+            - Jane (Female): The expert, insightful, empathetic, enthusiastic. She patiently explains complex ideas and connects the dots.
+            
+            INSTRUCTIONS:
+            - Make it sound REAL. Use natural speech patterns, interjections, and banter.
+            - Include disfluencies like "um", "like", "you know" sparingly to sound authentic.
+            - Have them interrupt each other occasionally or finish each other's sentences.
+            - Use emotional cues like [laughs], [sighs], [excitedly].
+            - Length: ${durationInstruction}.
+            
+            IMPORTANT FORMATTING:
+            Output the script as a dialogue where Joe and Jane take turns. 
+            Use a simple format like:
+            Joe: [text]
+            Jane: [text]
+            
+            MATERIAL:
+            ${context}
+            `;
         }
-      }
-    });
+        
+        const scriptResponse = await ai.models.generateContent({
+            model: MODEL_TEXT,
+            contents: scriptPrompt
+        });
+        
+        const scriptText = scriptResponse.text;
+        if (!scriptText) throw new Error("Failed to generate script");
 
-    if (onProgress) onProgress("Finalizing audio stream...");
+        // 2. Synthesize Audio using Multi-speaker TTS
+        if (onProgress) onProgress("Synthesizing AI host voices (Joe & Jane)...");
 
-    const base64Audio = ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    
-    if (!base64Audio) {
-        throw new Error("Failed to generate audio bytes");
+        const ttsResponse = await ai.models.generateContent({
+          model: MODEL_TTS,
+          contents: [{ parts: [{ text: scriptText }] }],
+          config: {
+            responseModalities: [Modality.AUDIO],
+            speechConfig: {
+                multiSpeakerVoiceConfig: {
+                  speakerVoiceConfigs: [
+                        {
+                            speaker: 'Joe',
+                            voiceConfig: {
+                              prebuiltVoiceConfig: { voiceName: 'Orus' } // New male voice
+                            }
+                        },
+                        {
+                            speaker: 'Jane',
+                            voiceConfig: {
+                              prebuiltVoiceConfig: { voiceName: 'Zephyr' } // New female voice
+                            }
+                        }
+                  ]
+                }
+            }
+          }
+        });
+
+        if (onProgress) onProgress("Finalizing audio stream...");
+
+        const base64Audio = ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        
+        if (!base64Audio) {
+            throw new Error("Failed to generate audio bytes");
+        }
+
+        // Convert raw PCM to a playable WAV Blob URL
+        const pcmBytes = base64ToUint8Array(base64Audio);
+        const audioUrl = createWavUrl(pcmBytes, 24000);
+
+        return {
+            script: scriptText,
+            audioUrl: audioUrl
+        };
+    } catch (error: any) {
+        console.error("Audio Overview Error:", error);
+        throw new Error(`Audio generation failed: ${error.message || "Network or API error"}`);
     }
-
-    // Convert raw PCM to a playable WAV Blob URL
-    const pcmBytes = base64ToUint8Array(base64Audio);
-    const audioUrl = createWavUrl(pcmBytes, 24000);
-
-    return {
-        script: scriptText,
-        audioUrl: audioUrl
-    };
 };
 
 export const getLiveClient = () => {

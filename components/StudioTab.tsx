@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Notebook, Artifact } from '../types';
-import { Mic, Headphones, FileText, HelpCircle, Layout, Presentation, Play, Pause, Loader2, X, Download, Wand2, Activity, Sparkles, ChevronRight, ChevronLeft, Maximize2, Minimize2, Monitor, AlertCircle, Share2, FileCode } from 'lucide-react';
+import { Mic, Headphones, FileText, HelpCircle, Layout, Presentation, Play, Pause, Loader2, X, Download, Wand2, Activity, Sparkles, ChevronRight, ChevronLeft, Maximize2, Minimize2, Monitor, AlertCircle, Share2, FileCode, GraduationCap, BookOpen } from 'lucide-react';
 import LiveSession from './LiveSession';
 import { useTheme, useJobs } from '../App';
 
@@ -17,6 +17,7 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
   
   // Audio Config State
   const [audioLength, setAudioLength] = useState<'Short' | 'Medium' | 'Long'>('Medium');
+  const [audioMode, setAudioMode] = useState<'Standard' | 'Learn'>('Standard');
   const [showAudioConfig, setShowAudioConfig] = useState(false);
 
   const { theme } = useTheme();
@@ -34,7 +35,7 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
     }
     
     // Start background job
-    startJob(notebook.id, type, notebook.sources, { length: audioLength });
+    startJob(notebook.id, type, notebook.sources, { length: audioLength, mode: audioMode });
     setShowAudioConfig(false);
   };
 
@@ -452,7 +453,7 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
                 </p>
             </div>
             
-            <div className="flex flex-col gap-3 min-w-[280px]">
+            <div className="flex flex-col gap-3 min-w-[320px]">
                  {isGenerating('audioOverview') ? (
                      <div className={`w-full bg-slate-900/90 border border-${theme.colors.primary}-500/30 p-5 rounded-xl flex flex-col items-center justify-center space-y-4 animate-in fade-in zoom-in-95`}>
                          <Loader2 className={`animate-spin text-${theme.colors.primary}-400`} size={24} />
@@ -461,7 +462,29 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
                          </div>
                      </div>
                  ) : showAudioConfig ? (
-                     <div className={`bg-slate-900/90 border border-${theme.colors.primary}-500/30 p-4 rounded-xl space-y-4 animate-in fade-in zoom-in-95`}>
+                     <div className={`bg-slate-900/90 border border-${theme.colors.primary}-500/30 p-5 rounded-xl space-y-5 animate-in fade-in zoom-in-95`}>
+                         {/* Format/Mode Selector */}
+                         <div>
+                             <label className="text-xs text-slate-400 uppercase font-semibold block mb-2">Format</label>
+                             <div className="grid grid-cols-2 gap-2">
+                                <button
+                                    onClick={() => setAudioMode('Standard')}
+                                    className={`flex flex-col items-center justify-center gap-1 p-3 rounded-lg border transition-all ${audioMode === 'Standard' ? `bg-${theme.colors.primary}-600/20 border-${theme.colors.primary}-500 text-${theme.colors.primary}-200` : 'bg-slate-800 border-transparent text-slate-400 hover:bg-slate-700'}`}
+                                >
+                                    <Mic size={18} />
+                                    <span className="text-xs font-medium">Deep Dive</span>
+                                </button>
+                                <button
+                                    onClick={() => setAudioMode('Learn')}
+                                    className={`flex flex-col items-center justify-center gap-1 p-3 rounded-lg border transition-all ${audioMode === 'Learn' ? `bg-${theme.colors.primary}-600/20 border-${theme.colors.primary}-500 text-${theme.colors.primary}-200` : 'bg-slate-800 border-transparent text-slate-400 hover:bg-slate-700'}`}
+                                >
+                                    <GraduationCap size={18} />
+                                    <span className="text-xs font-medium">Study Guide</span>
+                                </button>
+                             </div>
+                         </div>
+                         
+                         {/* Length Selector */}
                          <div>
                              <label className="text-xs text-slate-400 uppercase font-semibold block mb-2">Length</label>
                              <div className="flex bg-slate-800 rounded-lg p-1">
@@ -476,11 +499,12 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
                                  ))}
                              </div>
                          </div>
+
                          <button 
                             onClick={() => handleGenerate('audioOverview')}
-                            className={`w-full py-2 bg-gradient-to-r from-${theme.colors.primary}-500 to-${theme.colors.secondary}-600 text-white font-bold rounded-lg shadow-lg shadow-${theme.colors.primary}-500/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2`}
+                            className={`w-full py-2.5 bg-gradient-to-r from-${theme.colors.primary}-500 to-${theme.colors.secondary}-600 text-white font-bold rounded-lg shadow-lg shadow-${theme.colors.primary}-500/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2`}
                         >
-                            <Wand2 size={16} /> Generate
+                            <Wand2 size={16} /> Generate {audioMode === 'Learn' ? 'Guide' : 'Podcast'}
                          </button>
                      </div>
                  ) : (
