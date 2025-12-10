@@ -1,3 +1,4 @@
+
 import { Notebook, Source, Artifact } from '../types';
 
 const STORAGE_KEY = 'neon_notebook_data_v1';
@@ -16,6 +17,10 @@ export const saveNotebook = (notebook: Notebook): void => {
     notebooks.push(notebook);
   }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(notebooks));
+};
+
+export const updateNotebook = (notebook: Notebook): void => {
+    saveNotebook(notebook);
 };
 
 export const createNotebook = (title: string): Notebook => {

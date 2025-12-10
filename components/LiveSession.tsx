@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { Notebook } from '../types';
 import { getLiveClient, LIVE_MODEL_NAME } from '../services/ai';
@@ -54,15 +53,22 @@ const LiveSession: React.FC<Props> = ({ notebook }) => {
             model: LIVE_MODEL_NAME,
             config: {
                 responseModalities: [Modality.AUDIO],
+                tools: [{ googleSearch: {} }], // Enable Google Search for Live Session
                 speechConfig: {
                     voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } } 
                 },
                 systemInstruction: `You are a podcast host (Host A). You are knowledgeable, enthusiastic, and articulate. 
                 You are discussing the following material with the user (who is acting as a guest or co-host).
-                Keep responses concise and conversational.
                 
                 MATERIAL:
                 ${sourceContext}
+
+                IMPORTANT INSTRUCTIONS:
+                1. Use the provided MATERIAL as a foundation for your knowledge.
+                2. HOWEVER, if the user asks a question that is NOT in the material, or asks for general knowledge/recent events, YOU MUST ANSWER IT.
+                3. Use your general knowledge and the Google Search tool to answer broader questions.
+                4. DO NOT say "I cannot answer because it's not in the text". Pivot intelligently or search for the answer.
+                5. Keep responses concise, conversational, and friendly (spoken word style).
                 `
             },
             callbacks: {
@@ -356,4 +362,3 @@ const LiveSession: React.FC<Props> = ({ notebook }) => {
 };
 
 export default LiveSession;
-    

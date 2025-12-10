@@ -1,7 +1,9 @@
 import React, { useState, useRef } from 'react';
     import { Source } from '../types';
     import { fetchWebsiteContent, processFileWithGemini } from '../services/ai';
-    import { FileText, Link as LinkIcon, Youtube, Type, Upload, Trash2, Globe, FileAudio, Image, PlusCircle, X, Loader2 } from 'lucide-react';
+    import { FileText, Link as LinkIcon, Youtube, Type, Upload, Trash2, Globe, FileAudio, Image, PlusCircle, X, Loader2, Plus } from 'lucide-react';
+    import { useNavigate } from 'react-router-dom';
+    import { useTheme } from '../App';
     
     interface Props {
       sources: Source[];
@@ -22,6 +24,8 @@ import React, { useState, useRef } from 'react';
       const [error, setError] = useState<string | null>(null);
 
       const fileInputRef = useRef<HTMLInputElement>(null);
+      const navigate = useNavigate();
+      const { theme } = useTheme();
     
       const resetModal = () => {
           setActiveModal(null);
@@ -56,13 +60,8 @@ import React, { useState, useRef } from 'react';
                 metadata = { originalUrl: inputValue };
             }
             else if (activeModal === 'youtube') {
-                // For YouTube, getting transcripts client-side without API key is hard.
-                // We will treat it as a source entry that informs the user.
-                // In a real prod app, we'd use a backend.
-                // For this demo, we'll extract metadata and tell Gemini about it.
                 if (!inputValue.includes('youtube.com') && !inputValue.includes('youtu.be')) throw new Error("Invalid YouTube URL");
                 
-                // OEmbed fetch for title
                 try {
                     const oembedUrl = `https://noembed.com/embed?url=${inputValue}`;
                     const res = await fetch(oembedUrl);
@@ -79,7 +78,6 @@ import React, { useState, useRef } from 'react';
             else if (activeModal === 'file' && selectedFile && fileType) {
                  if (!finalTitle) finalTitle = selectedFile.name;
                  
-                 // Process file with Gemini Multimodal
                  content = await processFileWithGemini(selectedFile, selectedFile.type);
                  type = fileType;
                  metadata = { filename: selectedFile.name, size: selectedFile.size };
@@ -115,34 +113,54 @@ import React, { useState, useRef } from 'react';
     
       const SourceCard: React.FC<{ source: Source }> = ({ source }) => {
         let Icon = FileText;
-        if (source.type === 'website') Icon = Globe;
-        if (source.type === 'youtube') Icon = Youtube;
-        if (source.type === 'copiedText') Icon = Type;
-        if (source.type === 'audio') Icon = FileAudio;
-        if (source.type === 'image') Icon = Image;
+        let colorClass = "text-slate-400";
+        let bgClass = "bg-slate-900";
+        
+        if (source.type === 'website') { Icon = Globe; colorClass = "text-blue-400"; bgClass = "group-hover:bg-blue-500/10"; }
+        if (source.type === 'youtube') { Icon = Youtube; colorClass = "text-red-400"; bgClass = "group-hover:bg-red-500/10"; }
+        if (source.type === 'copiedText') { Icon = Type; colorClass = "text-pink-400"; bgClass = "group-hover:bg-pink-500/10"; }
+        if (source.type === 'audio') { Icon = FileAudio; colorClass = "text-purple-400"; bgClass = "group-hover:bg-purple-500/10"; }
+        if (source.type === 'image') { Icon = Image; colorClass = "text-green-400"; bgClass = "group-hover:bg-green-500/10"; }
     
         return (
-          <div className="glass-panel p-4 rounded-xl flex items-start gap-3 hover:border-cyan-500/50 transition-all group animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="p-3 bg-slate-800 rounded-lg group-hover:bg-cyan-500/20 transition-colors">
-                <Icon size={20} className="text-cyan-400" />
-            </div>
-            <div className="flex-1 min-w-0">
-                <h3 className="font-medium text-slate-200 truncate">{source.title}</h3>
-                <p className="text-xs text-slate-400 mt-1 truncate">
-                    {source.type === 'copiedText' ? 'Pasted Text' : source.metadata?.originalUrl || source.metadata?.filename || 'Uploaded File'}
-                </p>
-                <div className="mt-2 text-xs text-slate-500 flex gap-2">
-                    <span>{source.content.length} chars</span>
-                    <span>•</span>
-                    <span>{new Date(source.createdAt).toLocaleDateString()}</span>
+          <div className={`relative overflow-hidden glass-panel p-5 rounded-2xl border border-white/5 hover:border-${theme.colors.primary}-500/30 transition-all duration-300 group`}>
+             <div className={`absolute inset-0 bg-gradient-to-r from-${theme.colors.primary}-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none`}></div>
+
+             <div className="relative z-10 flex items-start gap-4">
+                <div className={`w-12 h-12 rounded-xl bg-slate-900 flex items-center justify-center border border-white/10 group-hover:border-${theme.colors.primary}-500/50 group-hover:shadow-[0_0_15px_rgba(var(--color-${theme.colors.primary}),0.15)] transition-all ${bgClass}`}>
+                    <Icon size={24} className={colorClass} />
                 </div>
-            </div>
-            <button 
-                onClick={() => onDeleteSource(source.id)}
-                className="opacity-0 group-hover:opacity-100 p-2 hover:bg-rose-500/20 hover:text-rose-500 rounded-lg transition-all"
-            >
-                <Trash2 size={16} />
-            </button>
+                
+                <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start">
+                         <div>
+                             <h3 className={`font-semibold text-slate-200 truncate pr-2 text-base group-hover:text-${theme.colors.primary}-300 transition-colors`}>
+                                 {source.title}
+                             </h3>
+                             <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 border border-slate-800 rounded px-1.5 py-0.5">
+                                    {source.type}
+                                </span>
+                                <span className="text-xs text-slate-500 truncate max-w-[150px]">
+                                    {source.type === 'copiedText' ? 'Pasted Content' : source.metadata?.originalUrl || source.metadata?.filename || 'File Upload'}
+                                </span>
+                             </div>
+                         </div>
+                         <button 
+                            onClick={() => onDeleteSource(source.id)}
+                            className="text-slate-600 hover:text-rose-500 p-1.5 hover:bg-rose-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                            title="Delete Source"
+                        >
+                            <Trash2 size={16} />
+                        </button>
+                    </div>
+                    
+                    <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between text-xs text-slate-500">
+                        <span className="font-mono">{source.content.length.toLocaleString()} chars</span>
+                        <span>{new Date(source.createdAt).toLocaleDateString()}</span>
+                    </div>
+                </div>
+             </div>
           </div>
         );
       };
@@ -152,23 +170,31 @@ import React, { useState, useRef } from 'react';
           <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-white/5 pb-6">
               <div className="space-y-2">
                  <h2 className="text-3xl font-bold text-white tracking-tight">Sources</h2>
-                 <p className="text-slate-400 max-w-lg">
+                 <p className="text-slate-400 max-w-lg leading-relaxed">
                     Add content to ground your notebook. The AI uses these sources to answer questions and generate audio overviews.
                  </p>
               </div>
-              <div className="text-right">
-                  <span className="text-4xl font-bold text-cyan-400">{sources.length}</span>
-                  <span className="text-slate-500 text-sm block uppercase tracking-wider font-semibold">Total Sources</span>
+              <div className="flex flex-col items-end gap-2">
+                  <div className="text-right">
+                      <span className={`text-4xl font-bold text-${theme.colors.primary}-400 drop-shadow-[0_0_10px_rgba(var(--color-${theme.colors.primary}),0.3)]`}>{sources.length}</span>
+                      <span className="text-slate-500 text-sm block uppercase tracking-wider font-semibold mt-1">Total Sources</span>
+                  </div>
+                  <button 
+                      onClick={() => navigate('/')} 
+                      className={`mt-2 text-xs text-${theme.colors.primary}-400 hover:text-${theme.colors.primary}-300 flex items-center gap-1 border border-${theme.colors.primary}-500/20 rounded-full px-3 py-1 bg-${theme.colors.primary}-500/5 hover:bg-${theme.colors.primary}-500/10 transition-colors`}
+                  >
+                      <Plus size={12} /> New Notebook
+                  </button>
               </div>
           </div>
     
           {/* Quick Actions */}
           <div>
-              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4">Add New Source</h3>
+              <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4 pl-1">Add New Source</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                  <button 
                     onClick={() => setActiveModal('text')} 
-                    className="p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-cyan-500/30"
+                    className={`p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-${theme.colors.primary}-500/30`}
                  >
                      <div className="p-3 bg-rose-500/10 rounded-full group-hover:bg-rose-500/20 transition-colors">
                         <Type className="text-rose-400" size={24} />
@@ -178,7 +204,7 @@ import React, { useState, useRef } from 'react';
                  
                  <button 
                     onClick={() => setActiveModal('website')}
-                    className="p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-cyan-500/30"
+                    className={`p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-${theme.colors.primary}-500/30`}
                  >
                      <div className="p-3 bg-blue-500/10 rounded-full group-hover:bg-blue-500/20 transition-colors">
                         <Globe className="text-blue-400" size={24} />
@@ -188,7 +214,7 @@ import React, { useState, useRef } from 'react';
                  
                  <button 
                     onClick={() => setActiveModal('youtube')}
-                    className="p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-cyan-500/30"
+                    className={`p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-${theme.colors.primary}-500/30`}
                  >
                      <div className="p-3 bg-red-500/10 rounded-full group-hover:bg-red-500/20 transition-colors">
                         <Youtube className="text-red-500" size={24} />
@@ -198,7 +224,7 @@ import React, { useState, useRef } from 'react';
                  
                  <button 
                     onClick={() => { setActiveModal('file'); setFileType('pdf'); }}
-                    className="p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-cyan-500/30"
+                    className={`p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-${theme.colors.primary}-500/30`}
                  >
                      <div className="p-3 bg-orange-500/10 rounded-full group-hover:bg-orange-500/20 transition-colors">
                         <FileText className="text-orange-400" size={24} />
@@ -208,7 +234,7 @@ import React, { useState, useRef } from 'react';
                  
                  <button 
                     onClick={() => { setActiveModal('file'); setFileType('audio'); }}
-                    className="p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-cyan-500/30"
+                    className={`p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-${theme.colors.primary}-500/30`}
                  >
                      <div className="p-3 bg-purple-500/10 rounded-full group-hover:bg-purple-500/20 transition-colors">
                         <FileAudio className="text-purple-400" size={24} />
@@ -218,7 +244,7 @@ import React, { useState, useRef } from 'react';
                  
                  <button 
                     onClick={() => { setActiveModal('file'); setFileType('image'); }}
-                    className="p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-cyan-500/30"
+                    className={`p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-${theme.colors.primary}-500/30`}
                  >
                      <div className="p-3 bg-green-500/10 rounded-full group-hover:bg-green-500/20 transition-colors">
                         <Image className="text-green-400" size={24} />
@@ -231,12 +257,12 @@ import React, { useState, useRef } from 'react';
           {/* Sources List */}
           <div className="pt-4">
             {sources.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 text-slate-500 glass-panel rounded-2xl border-dashed border-slate-700 bg-slate-900/30">
-                    <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mb-4">
+                <div className="flex flex-col items-center justify-center py-20 text-slate-500 glass-panel rounded-2xl border-dashed border-slate-700 bg-slate-900/30">
+                    <div className="w-20 h-20 bg-slate-800/50 rounded-full flex items-center justify-center mb-6 ring-1 ring-white/10">
                         <PlusCircle size={32} className="text-slate-600" />
                     </div>
-                    <p className="text-lg font-medium text-slate-400">No sources yet</p>
-                    <p className="text-sm mt-1">Paste text, URL, or upload a file to get started.</p>
+                    <p className="text-xl font-medium text-slate-300">No sources yet</p>
+                    <p className="text-sm mt-2 text-slate-500">Paste text, URL, or upload a file to get started.</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -269,7 +295,7 @@ import React, { useState, useRef } from 'react';
 
                     <div className="space-y-4">
                         <input 
-                            className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 focus:ring-2 focus:ring-cyan-500 outline-none transition-all"
+                            className={`w-full bg-slate-900 border border-slate-700 rounded-xl p-4 focus:ring-2 focus:ring-${theme.colors.primary}-500 outline-none transition-all`}
                             placeholder="Title (Optional)"
                             value={titleValue}
                             onChange={(e) => setTitleValue(e.target.value)}
@@ -278,7 +304,7 @@ import React, { useState, useRef } from 'react';
 
                         {activeModal === 'text' && (
                             <textarea 
-                                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 font-mono text-sm focus:ring-2 focus:ring-cyan-500 outline-none resize-none min-h-[200px]"
+                                className={`w-full bg-slate-900 border border-slate-700 rounded-xl p-4 font-mono text-sm focus:ring-2 focus:ring-${theme.colors.primary}-500 outline-none resize-none min-h-[200px]`}
                                 placeholder="Paste your content here..."
                                 value={inputValue}
                                 onChange={(e) => setInputValue(e.target.value)}
@@ -288,7 +314,7 @@ import React, { useState, useRef } from 'react';
 
                         {(activeModal === 'website' || activeModal === 'youtube') && (
                             <input 
-                                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 focus:ring-2 focus:ring-cyan-500 outline-none transition-all font-mono text-sm"
+                                className={`w-full bg-slate-900 border border-slate-700 rounded-xl p-4 focus:ring-2 focus:ring-${theme.colors.primary}-500 outline-none transition-all font-mono text-sm`}
                                 placeholder={activeModal === 'website' ? "https://example.com/article" : "https://youtube.com/watch?v=..."}
                                 value={inputValue}
                                 onChange={(e) => setInputValue(e.target.value)}
@@ -298,7 +324,7 @@ import React, { useState, useRef } from 'react';
 
                         {activeModal === 'file' && (
                             <div 
-                                className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center cursor-pointer transition-all ${selectedFile ? 'border-cyan-500/50 bg-cyan-500/5' : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'}`}
+                                className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center cursor-pointer transition-all ${selectedFile ? `border-${theme.colors.primary}-500/50 bg-${theme.colors.primary}-500/5` : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'}`}
                                 onClick={() => !isProcessing && fileInputRef.current?.click()}
                             >
                                 <input 
@@ -315,7 +341,7 @@ import React, { useState, useRef } from 'react';
                                 />
                                 {selectedFile ? (
                                     <>
-                                        <div className="w-12 h-12 bg-cyan-500/20 text-cyan-400 rounded-full flex items-center justify-center mb-3">
+                                        <div className={`w-12 h-12 bg-${theme.colors.primary}-500/20 text-${theme.colors.primary}-400 rounded-full flex items-center justify-center mb-3`}>
                                             <Upload size={24} />
                                         </div>
                                         <p className="font-medium text-slate-200">{selectedFile.name}</p>
@@ -339,11 +365,11 @@ import React, { useState, useRef } from 'react';
                         )}
                         
                         {isProcessing && (
-                            <div className="p-4 bg-cyan-500/5 border border-cyan-500/20 rounded-lg flex items-center gap-3">
-                                <Loader2 className="animate-spin text-cyan-400" size={20} />
+                            <div className={`p-4 bg-${theme.colors.primary}-500/5 border border-${theme.colors.primary}-500/20 rounded-lg flex items-center gap-3`}>
+                                <Loader2 className={`animate-spin text-${theme.colors.primary}-400`} size={20} />
                                 <div className="text-sm">
-                                    <p className="text-cyan-200 font-medium">Processing Source...</p>
-                                    <p className="text-cyan-500/70 text-xs">This may take a few seconds.</p>
+                                    <p className={`text-${theme.colors.primary}-200 font-medium`}>Processing Source...</p>
+                                    <p className={`text-${theme.colors.primary}-500/70 text-xs`}>This may take a few seconds.</p>
                                 </div>
                             </div>
                         )}
@@ -359,7 +385,7 @@ import React, { useState, useRef } from 'react';
                             <button 
                                 onClick={handleAddSource}
                                 disabled={isProcessing || (!inputValue && !selectedFile)}
-                                className="px-8 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 rounded-xl font-bold hover:shadow-lg hover:shadow-cyan-500/20 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:hover:scale-100 flex items-center gap-2"
+                                className={`px-8 py-2.5 bg-gradient-to-r from-${theme.colors.primary}-600 to-${theme.colors.secondary}-600 rounded-xl font-bold hover:shadow-lg hover:shadow-${theme.colors.primary}-500/20 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:hover:scale-100 flex items-center gap-2`}
                             >
                                 {isProcessing ? <Loader2 className="animate-spin" size={16} /> : <PlusCircle size={18} />}
                                 Add Source

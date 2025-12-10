@@ -1,3 +1,4 @@
+
 export interface Source {
   id: string;
   type: 'pdf' | 'audio' | 'image' | 'website' | 'youtube' | 'copiedText';
@@ -38,4 +39,20 @@ export interface ChatMessage {
   text: string;
   isStreaming?: boolean;
   citations?: string[];
+  groundingMetadata?: any; // Google Search Grounding Data
+}
+
+export interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'success' | 'error' | 'info';
+}
+
+export interface BackgroundJob {
+  id: string;
+  notebookId: string;
+  type: Artifact['type'];
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  progress?: string;
 }
