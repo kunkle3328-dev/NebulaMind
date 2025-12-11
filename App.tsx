@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import { HashRouter, Routes, Route, useNavigate, useParams, Link } from 'react-router-dom';
 import { Notebook, Notification, BackgroundJob, Artifact } from './types';
@@ -79,19 +78,19 @@ export const NebulaLogo: React.FC<{ size?: 'sm' | 'lg' }> = ({ size = 'sm' }) =>
                     <circle cx="50" cy="50" r="4" fill="white" className="animate-ping" style={{ animationDuration: '3s' }} />
                 </svg>
              </div>
-             <h1 className={`${isLg ? 'text-3xl' : 'text-xl'} font-bold tracking-tight text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]`}>
+             <h1 className={`${isLg ? 'text-2xl md:text-3xl' : 'text-xl'} font-bold tracking-tight text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]`}>
                Nebula<span className={`bg-clip-text text-transparent bg-gradient-to-r from-${primary}-400 to-${secondary}-400 transition-all duration-500`}>Mind</span>
              </h1>
         </div>
     );
 };
 
-const ThemeSelector: React.FC = () => {
+export const ThemeSelector: React.FC = () => {
   const { theme, setThemeId } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="relative z-50">
+    <div className="relative z-[100]">
       <button 
         onClick={() => setIsOpen(!isOpen)}
         className={`flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 backdrop-blur-md transition-all ${theme.colors.panel} text-${theme.colors.primary}-400 hover:bg-white/5 shadow-lg shadow-black/20`}
@@ -102,22 +101,25 @@ const ThemeSelector: React.FC = () => {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-56 rounded-xl border border-white/10 bg-slate-950/95 backdrop-blur-xl shadow-2xl p-2 animate-in fade-in zoom-in-95 origin-top-right">
-          <div className="px-3 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Select Theme</div>
-          {Object.values(THEMES).map((t) => (
-            <button
-              key={t.id}
-              onClick={() => { setThemeId(t.id); setIsOpen(false); }}
-              className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between transition-colors mb-1 ${theme.id === t.id ? `bg-${t.colors.primary}-500/20 text-${t.colors.primary}-400` : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
-            >
-              <div className="flex items-center gap-3">
-                 <div className={`w-4 h-4 rounded-full bg-gradient-to-br from-${t.colors.primary}-400 to-${t.colors.secondary}-500 shadow-[0_0_8px_currentColor]`}></div>
-                 <span className={theme.id === t.id ? 'font-semibold' : ''}>{t.name}</span>
-              </div>
-              {theme.id === t.id && <Check size={14} />}
-            </button>
-          ))}
-        </div>
+        <>
+            <div className="fixed inset-0 z-[90] cursor-default" onClick={() => setIsOpen(false)} />
+            <div className="absolute right-0 mt-2 w-56 rounded-xl border border-white/10 bg-slate-950/95 backdrop-blur-xl shadow-2xl p-2 animate-in fade-in zoom-in-95 origin-top-right z-[100]">
+            <div className="px-3 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Select Theme</div>
+            {Object.values(THEMES).map((t) => (
+                <button
+                key={t.id}
+                onClick={() => { setThemeId(t.id); setIsOpen(false); }}
+                className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between transition-colors mb-1 ${theme.id === t.id ? `bg-${t.colors.primary}-500/20 text-${t.colors.primary}-400` : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+                >
+                <div className="flex items-center gap-3">
+                    <div className={`w-4 h-4 rounded-full bg-gradient-to-br from-${t.colors.primary}-400 to-${t.colors.secondary}-500 shadow-[0_0_8px_currentColor]`}></div>
+                    <span className={theme.id === t.id ? 'font-semibold' : ''}>{t.name}</span>
+                </div>
+                {theme.id === t.id && <Check size={14} />}
+                </button>
+            ))}
+            </div>
+        </>
       )}
     </div>
   );
@@ -145,8 +147,17 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className={`min-h-screen ${theme.colors.background} p-4 md:p-8 relative overflow-hidden transition-colors duration-700`}>
+    <div className={`min-h-screen ${theme.colors.background} p-4 md:p-8 relative transition-colors duration-700`}>
       {/* Advanced Background Effects */}
+      {theme.id === 'cyberpunk' && (
+          <>
+             {/* Cyberpunk Grid */}
+             <div className="absolute inset-0 bg-[linear-gradient(to_right,#222_1px,transparent_1px),linear-gradient(to_bottom,#222_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] pointer-events-none opacity-50"></div>
+             {/* Neon Ambient Glows */}
+             <div className="absolute top-0 left-0 right-0 h-[500px] bg-gradient-to-b from-fuchsia-900/30 via-cyan-900/10 to-transparent blur-[120px] pointer-events-none"></div>
+             <div className="absolute bottom-0 left-0 right-0 h-[400px] bg-gradient-to-t from-cyan-900/20 via-purple-900/10 to-transparent blur-[100px] pointer-events-none"></div>
+          </>
+      )}
       {theme.id === 'crimson' && (
           <>
             <div className="absolute inset-0 bg-[linear-gradient(rgba(20,0,0,0.5)_2px,transparent_2px),linear-gradient(90deg,rgba(20,0,0,0.5)_2px,transparent_2px)] bg-[size:40px_40px] opacity-20 pointer-events-none"></div>
@@ -171,17 +182,17 @@ const Dashboard: React.FC = () => {
           <div className={`absolute top-0 left-1/4 w-96 h-96 bg-${theme.colors.secondary}-900/10 rounded-full blur-[100px] pointer-events-none transition-colors duration-1000`}></div>
       )}
 
-      <header className="flex justify-between items-center mb-16 relative z-10">
+      <header className="flex justify-between items-center mb-10 md:mb-16 relative z-50">
         <NebulaLogo size="lg" />
         <ThemeSelector />
       </header>
 
-      <div className="max-w-6xl mx-auto relative z-10">
+      <div className="max-w-6xl mx-auto relative z-10 pb-20">
         <div className="flex justify-between items-end mb-8">
           <h2 className="text-xl text-slate-300 font-light tracking-wide">Your Research Space</h2>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* New Notebook Card */}
           <button 
             onClick={() => { setShowCreateModal(true); setNewTitle(''); }}
@@ -357,6 +368,7 @@ const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             try {
                 let content;
                 if (type === 'audioOverview') {
+                    // Pass the mode and length from config
                     content = await generateAudioOverview(sources, config?.length, config?.mode);
                 } else {
                     content = await generateArtifact(type, sources);

@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useRef, useState } from 'react';
 import { Notebook } from '../types';
 import { getLiveClient, LIVE_MODEL_NAME } from '../services/ai';
@@ -50,6 +51,7 @@ const LiveSession: React.FC<Props> = ({ notebook }) => {
   // Visualizer Refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const connect = async () => {
     setStatus('connecting');
@@ -255,7 +257,8 @@ const LiveSession: React.FC<Props> = ({ notebook }) => {
 
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
-        const radius = 70; 
+        // Responsive radius based on canvas width
+        const radius = Math.min(centerX, centerY) * 0.45; 
         const bars = 64;
         const step = (Math.PI * 2) / bars;
         
@@ -264,7 +267,7 @@ const LiveSession: React.FC<Props> = ({ notebook }) => {
         if (status === 'live') {
             for (let i = 0; i < bars; i++) {
                 const value = dataArray[i * 2] || 0;
-                const barHeight = (value / 255) * 80 + 5; 
+                const barHeight = (value / 255) * (radius * 1.2) + 5; 
                 const angle = i * step + rotation;
                 const x1 = centerX + Math.cos(angle) * radius;
                 const y1 = centerY + Math.sin(angle) * radius;
@@ -314,13 +317,14 @@ const LiveSession: React.FC<Props> = ({ notebook }) => {
   }, [status]);
 
   return (
-    <div className="flex flex-col items-center justify-center h-[500px] glass-panel rounded-2xl relative overflow-hidden bg-slate-950">
+    <div ref={containerRef} className="flex flex-col items-center justify-center min-h-[400px] h-[60vh] md:h-[500px] glass-panel rounded-2xl relative overflow-hidden bg-slate-950 mx-4 md:mx-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black z-0"></div>
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-cyan-900/20 blur-[80px] rounded-full animate-pulse"></div>
         
         <div className="relative z-10 flex flex-col items-center gap-8 w-full">
-            <div className="relative w-full h-[320px] flex items-center justify-center">
-                 <canvas ref={canvasRef} width={400} height={320} className="z-10" />
+            <div className="relative w-full h-[280px] md:h-[320px] flex items-center justify-center">
+                 {/* Responsive Canvas */}
+                 <canvas ref={canvasRef} width={400} height={320} className="z-10 w-full max-w-[400px] h-full object-contain" />
                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center pointer-events-none">
                       <div className={`p-4 rounded-full transition-all duration-500 ${status === 'live' ? 'bg-slate-900/80 shadow-[0_0_30px_rgba(34,211,238,0.3)] backdrop-blur-md border border-cyan-500/30' : 'bg-slate-800'}`}>
                           {status === 'live' ? <Activity className="text-cyan-400 w-8 h-8 animate-pulse" /> : <MicOff className="text-slate-500 w-8 h-8" />}
@@ -328,8 +332,8 @@ const LiveSession: React.FC<Props> = ({ notebook }) => {
                  </div>
             </div>
 
-            <div className="text-center -mt-8 z-20">
-                <h2 className="text-2xl font-bold mb-2 text-white drop-shadow-[0_0_10px_rgba(34,211,238,0.5)]">
+            <div className="text-center -mt-8 z-20 px-4">
+                <h2 className="text-xl md:text-2xl font-bold mb-2 text-white drop-shadow-[0_0_10px_rgba(34,211,238,0.5)]">
                     {status === 'idle' ? 'Start Live Session' : status === 'connecting' ? 'Establishing Uplink...' : status === 'live' ? 'Live on Air' : 'Connection Failed'}
                 </h2>
                 <p className="text-slate-400 max-w-sm mx-auto text-sm font-medium">
@@ -341,7 +345,7 @@ const LiveSession: React.FC<Props> = ({ notebook }) => {
                 {status === 'idle' || status === 'error' ? (
                     <button 
                         onClick={connect}
-                        className="px-8 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-full font-bold text-lg hover:shadow-[0_0_30px_rgba(34,211,238,0.4)] hover:scale-105 transition-all flex items-center gap-2 border border-white/10"
+                        className="px-6 md:px-8 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-full font-bold text-base md:text-lg hover:shadow-[0_0_30px_rgba(34,211,238,0.4)] hover:scale-105 transition-all flex items-center gap-2 border border-white/10"
                     >
                         <Mic size={20} /> Go Live
                     </button>

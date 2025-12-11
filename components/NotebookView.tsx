@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Notebook, Source } from '../types';
 import { ArrowLeft, MessageSquare, Layers, FolderOpen, Palette, ChevronLeft, ChevronRight, Edit2, Check, X, Share2, Copy } from 'lucide-react';
@@ -6,7 +5,7 @@ import { Link } from 'react-router-dom';
 import SourcesTab from './SourcesTab';
 import ChatTab from './ChatTab';
 import StudioTab from './StudioTab';
-import { useTheme, NebulaLogo, useJobs } from '../App';
+import { useTheme, NebulaLogo, useJobs, ThemeSelector } from '../App';
 import { THEMES } from '../constants';
 
 interface Props {
@@ -67,11 +66,11 @@ const NotebookView: React.FC<Props> = ({ notebook, onUpdate }) => {
   return (
     <div className={`min-h-screen ${theme.colors.background} ${theme.colors.text} flex flex-col md:flex-row transition-colors duration-700`}>
       
-      {/* Sidebar (Desktop) */}
+      {/* Sidebar (Desktop) / Bottom Nav (Mobile) */}
       <nav className={`
-        fixed bottom-0 left-0 w-full h-16 glass-panel border-t border-white/10 z-50
+        fixed bottom-0 left-0 w-full h-16 glass-panel border-t border-white/10 z-[100]
         md:relative md:h-screen md:border-t-0 md:border-r md:flex md:flex-col
-        transition-all duration-300 bg-black/20 backdrop-blur-xl
+        transition-all duration-300 bg-black/80 backdrop-blur-xl md:bg-black/20
         ${isSidebarCollapsed ? 'md:w-20' : 'md:w-72'}
       `}>
         {/* Toggle Collapse Button */}
@@ -131,43 +130,41 @@ const NotebookView: React.FC<Props> = ({ notebook, onUpdate }) => {
             <button 
                 onClick={() => setActiveTab('sources')}
                 title="Sources"
-                className={`flex flex-col md:flex-row items-center gap-3 p-2 md:px-4 md:py-3.5 rounded-xl transition-all w-full group
-                ${activeTab === 'sources' ? `text-${theme.colors.primary}-400 bg-${theme.colors.primary}-900/20 border border-${theme.colors.primary}-500/20` : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}
+                className={`flex flex-col md:flex-row items-center gap-1 md:gap-3 p-2 md:px-4 md:py-3.5 rounded-xl transition-all w-full group
+                ${activeTab === 'sources' ? `text-${theme.colors.primary}-400 bg-white/5 md:bg-${theme.colors.primary}-900/20 border-t-2 md:border-t-0 border-${theme.colors.primary}-500 md:border-${theme.colors.primary}-500/20` : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border-t-2 md:border-t-0 border-transparent'}
                 ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''}`}
             >
-                <FolderOpen size={24} className="md:w-5 md:h-5" />
+                <FolderOpen size={20} className="md:w-5 md:h-5" />
+                <span className="text-[10px] md:text-sm font-medium">Sources</span>
                 {!isSidebarCollapsed && (
-                    <>
-                        <span className="text-xs md:text-sm font-medium">Sources</span>
-                        <span className={`hidden md:block ml-auto text-xs ${activeTab === 'sources' ? `bg-${theme.colors.primary}-500/20 text-${theme.colors.primary}-300` : 'bg-slate-800 text-slate-500'} px-2 py-0.5 rounded-full transition-colors`}>{notebook.sources.length}</span>
-                    </>
+                     <span className={`hidden md:block ml-auto text-xs ${activeTab === 'sources' ? `bg-${theme.colors.primary}-500/20 text-${theme.colors.primary}-300` : 'bg-slate-800 text-slate-500'} px-2 py-0.5 rounded-full transition-colors`}>{notebook.sources.length}</span>
                 )}
             </button>
 
             <button 
                 onClick={() => setActiveTab('chat')}
                 title="Chat"
-                className={`flex flex-col md:flex-row items-center gap-3 p-2 md:px-4 md:py-3.5 rounded-xl transition-all w-full
-                ${activeTab === 'chat' ? `text-${theme.colors.primary}-400 bg-${theme.colors.primary}-900/20 border border-${theme.colors.primary}-500/20` : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}
+                className={`flex flex-col md:flex-row items-center gap-1 md:gap-3 p-2 md:px-4 md:py-3.5 rounded-xl transition-all w-full
+                ${activeTab === 'chat' ? `text-${theme.colors.primary}-400 bg-white/5 md:bg-${theme.colors.primary}-900/20 border-t-2 md:border-t-0 border-${theme.colors.primary}-500 md:border-${theme.colors.primary}-500/20` : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border-t-2 md:border-t-0 border-transparent'}
                 ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''}`}
             >
-                <MessageSquare size={24} className="md:w-5 md:h-5" />
-                {!isSidebarCollapsed && <span className="text-xs md:text-sm font-medium">Chat Assistant</span>}
+                <MessageSquare size={20} className="md:w-5 md:h-5" />
+                <span className="text-[10px] md:text-sm font-medium">Chat</span>
             </button>
 
             <button 
                 onClick={() => setActiveTab('studio')}
                 title="Studio"
-                className={`flex flex-col md:flex-row items-center gap-3 p-2 md:px-4 md:py-3.5 rounded-xl transition-all w-full
-                ${activeTab === 'studio' ? `text-${theme.colors.primary}-400 bg-${theme.colors.primary}-900/20 border border-${theme.colors.primary}-500/20` : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}
+                className={`flex flex-col md:flex-row items-center gap-1 md:gap-3 p-2 md:px-4 md:py-3.5 rounded-xl transition-all w-full
+                ${activeTab === 'studio' ? `text-${theme.colors.primary}-400 bg-white/5 md:bg-${theme.colors.primary}-900/20 border-t-2 md:border-t-0 border-${theme.colors.primary}-500 md:border-${theme.colors.primary}-500/20` : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border-t-2 md:border-t-0 border-transparent'}
                 ${isSidebarCollapsed ? 'md:justify-center md:px-2' : ''}`}
             >
-                <Layers size={24} className="md:w-5 md:h-5" />
-                {!isSidebarCollapsed && <span className="text-xs md:text-sm font-medium">Creative Studio</span>}
+                <Layers size={20} className="md:w-5 md:h-5" />
+                <span className="text-[10px] md:text-sm font-medium">Studio</span>
             </button>
         </div>
 
-        {/* Theme Selector in Sidebar Footer */}
+        {/* Theme Selector in Sidebar Footer (Desktop) */}
         <div className="mt-auto p-4 hidden md:block border-t border-white/5 relative">
             <button 
                 onClick={() => setShowThemeMenu(!showThemeMenu)}
@@ -203,29 +200,35 @@ const NotebookView: React.FC<Props> = ({ notebook, onUpdate }) => {
       </nav>
 
       {/* Main Content Area */}
-      <main className={`flex-1 overflow-y-auto h-[calc(100vh-64px)] md:h-screen relative ${theme.colors.background} transition-colors duration-700`}>
+      <main className={`flex-1 overflow-y-auto h-[calc(100vh-64px)] md:h-screen relative ${theme.colors.background} transition-colors duration-700 pb-20 md:pb-0`}>
         {/* Ambient Backgrounds for Content Area */}
         {theme.id === 'quantum' && <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-violet-900/10 rounded-full blur-[100px] pointer-events-none"></div>}
         {theme.id === 'gilded' && <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-emerald-900/10 rounded-full blur-[100px] pointer-events-none"></div>}
         {theme.id === 'crimson' && <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-rose-900/10 rounded-full blur-[120px] pointer-events-none animate-pulse-slow"></div>}
         
-        {/* Global App Header - Simplified (Only Share) */}
-        <header className="sticky top-0 z-30 px-8 py-4 flex justify-end items-center backdrop-blur-md border-b border-white/5 bg-black/20 h-16">
-            <div className="flex items-center gap-4">
+        {/* Global App Header */}
+        <header className="sticky top-0 z-30 px-4 md:px-8 py-3 md:py-4 flex justify-between md:justify-end items-center backdrop-blur-md border-b border-white/5 bg-black/20 h-16">
+            <Link to="/" className="md:hidden flex items-center gap-2">
+                 <NebulaLogo size="sm" />
+            </Link>
+            
+            <div className="flex items-center gap-2 md:gap-4">
+                 {/* Mobile Theme Selector */}
+                 <div className="md:hidden">
+                    <ThemeSelector />
+                 </div>
+
                  <button 
                     onClick={() => setShowShareModal(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-full text-sm font-medium text-slate-300 hover:text-white transition-all border border-white/5"
+                    className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-full text-xs md:text-sm font-medium text-slate-300 hover:text-white transition-all border border-white/5"
                  >
                     <Share2 size={16} />
-                    Share Notebook
+                    <span className="hidden sm:inline">Share Notebook</span>
                  </button>
-                 <Link to="/" className="md:hidden p-2 rounded-full hover:bg-white/10 text-slate-400 hover:text-white">
-                     <ArrowLeft size={20} />
-                 </Link>
             </div>
         </header>
 
-        <div className="max-w-6xl mx-auto p-4 md:p-8 pb-24 md:pb-8 relative z-10">
+        <div className="max-w-6xl mx-auto p-4 md:p-8 pb-8 relative z-10">
             {activeTab === 'sources' && <SourcesTab sources={notebook.sources} onAddSource={addSource} onDeleteSource={deleteSource} />}
             {activeTab === 'chat' && <ChatTab notebook={notebook} />}
             {activeTab === 'studio' && <StudioTab notebook={notebook} onUpdate={onUpdate} />}

@@ -1,3 +1,5 @@
+
+
 import React, { useState, useRef } from 'react';
     import { Source } from '../types';
     import { fetchWebsiteContent, processFileWithGemini } from '../services/ai';
@@ -127,13 +129,13 @@ import React, { useState, useRef } from 'react';
              <div className={`absolute inset-0 bg-gradient-to-r from-${theme.colors.primary}-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none`}></div>
 
              <div className="relative z-10 flex items-start gap-4">
-                <div className={`w-12 h-12 rounded-xl bg-slate-900 flex items-center justify-center border border-white/10 group-hover:border-${theme.colors.primary}-500/50 group-hover:shadow-[0_0_15px_rgba(var(--color-${theme.colors.primary}),0.15)] transition-all ${bgClass}`}>
+                <div className={`w-12 h-12 rounded-xl bg-slate-900 flex items-center justify-center border border-white/10 group-hover:border-${theme.colors.primary}-500/50 group-hover:shadow-[0_0_15px_rgba(var(--color-${theme.colors.primary}),0.15)] transition-all ${bgClass} shrink-0`}>
                     <Icon size={24} className={colorClass} />
                 </div>
                 
                 <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-start">
-                         <div>
+                         <div className="min-w-0">
                              <h3 className={`font-semibold text-slate-200 truncate pr-2 text-base group-hover:text-${theme.colors.primary}-300 transition-colors`}>
                                  {source.title}
                              </h3>
@@ -141,7 +143,7 @@ import React, { useState, useRef } from 'react';
                                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 border border-slate-800 rounded px-1.5 py-0.5">
                                     {source.type}
                                 </span>
-                                <span className="text-xs text-slate-500 truncate max-w-[150px]">
+                                <span className="text-xs text-slate-500 truncate max-w-[120px]">
                                     {source.type === 'copiedText' ? 'Pasted Content' : source.metadata?.originalUrl || source.metadata?.filename || 'File Upload'}
                                 </span>
                              </div>
@@ -169,14 +171,14 @@ import React, { useState, useRef } from 'react';
         <div className="space-y-10">
           <div className="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-white/5 pb-6">
               <div className="space-y-2">
-                 <h2 className="text-3xl font-bold text-white tracking-tight">Sources</h2>
-                 <p className="text-slate-400 max-w-lg leading-relaxed">
+                 <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight">Sources</h2>
+                 <p className="text-slate-400 max-w-lg leading-relaxed text-sm md:text-base">
                     Add content to ground your notebook. The AI uses these sources to answer questions and generate audio overviews.
                  </p>
               </div>
               <div className="flex flex-col items-end gap-2">
                   <div className="text-right">
-                      <span className={`text-4xl font-bold text-${theme.colors.primary}-400 drop-shadow-[0_0_10px_rgba(var(--color-${theme.colors.primary}),0.3)]`}>{sources.length}</span>
+                      <span className={`text-3xl md:text-4xl font-bold text-${theme.colors.primary}-400 drop-shadow-[0_0_10px_rgba(var(--color-${theme.colors.primary}),0.3)]`}>{sources.length}</span>
                       <span className="text-slate-500 text-sm block uppercase tracking-wider font-semibold mt-1">Total Sources</span>
                   </div>
                   <button 
@@ -191,65 +193,65 @@ import React, { useState, useRef } from 'react';
           {/* Quick Actions */}
           <div>
               <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4 pl-1">Add New Source</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
                  <button 
                     onClick={() => setActiveModal('text')} 
-                    className={`p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-${theme.colors.primary}-500/30`}
+                    className={`p-4 md:p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-${theme.colors.primary}-500/30`}
                  >
                      <div className="p-3 bg-rose-500/10 rounded-full group-hover:bg-rose-500/20 transition-colors">
                         <Type className="text-rose-400" size={24} />
                      </div>
-                     <span className="text-sm font-medium text-slate-200">Paste Text</span>
+                     <span className="text-xs md:text-sm font-medium text-slate-200">Paste Text</span>
                  </button>
                  
                  <button 
                     onClick={() => setActiveModal('website')}
-                    className={`p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-${theme.colors.primary}-500/30`}
+                    className={`p-4 md:p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-${theme.colors.primary}-500/30`}
                  >
                      <div className="p-3 bg-blue-500/10 rounded-full group-hover:bg-blue-500/20 transition-colors">
                         <Globe className="text-blue-400" size={24} />
                      </div>
-                     <span className="text-sm font-medium text-slate-200">Website</span>
+                     <span className="text-xs md:text-sm font-medium text-slate-200">Website</span>
                  </button>
                  
                  <button 
                     onClick={() => setActiveModal('youtube')}
-                    className={`p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-${theme.colors.primary}-500/30`}
+                    className={`p-4 md:p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-${theme.colors.primary}-500/30`}
                  >
                      <div className="p-3 bg-red-500/10 rounded-full group-hover:bg-red-500/20 transition-colors">
                         <Youtube className="text-red-500" size={24} />
                      </div>
-                     <span className="text-sm font-medium text-slate-200">YouTube</span>
+                     <span className="text-xs md:text-sm font-medium text-slate-200">YouTube</span>
                  </button>
                  
                  <button 
                     onClick={() => { setActiveModal('file'); setFileType('pdf'); }}
-                    className={`p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-${theme.colors.primary}-500/30`}
+                    className={`p-4 md:p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-${theme.colors.primary}-500/30`}
                  >
                      <div className="p-3 bg-orange-500/10 rounded-full group-hover:bg-orange-500/20 transition-colors">
                         <FileText className="text-orange-400" size={24} />
                      </div>
-                     <span className="text-sm font-medium text-slate-200">PDF</span>
+                     <span className="text-xs md:text-sm font-medium text-slate-200">PDF</span>
                  </button>
                  
                  <button 
                     onClick={() => { setActiveModal('file'); setFileType('audio'); }}
-                    className={`p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-${theme.colors.primary}-500/30`}
+                    className={`p-4 md:p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-${theme.colors.primary}-500/30`}
                  >
                      <div className="p-3 bg-purple-500/10 rounded-full group-hover:bg-purple-500/20 transition-colors">
                         <FileAudio className="text-purple-400" size={24} />
                      </div>
-                     <span className="text-sm font-medium text-slate-200">Audio</span>
+                     <span className="text-xs md:text-sm font-medium text-slate-200">Audio</span>
                  </button>
                  
                  <button 
                     onClick={() => { setActiveModal('file'); setFileType('image'); }}
-                    className={`p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-${theme.colors.primary}-500/30`}
+                    className={`p-4 md:p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-${theme.colors.primary}-500/30`}
                  >
                      <div className="p-3 bg-green-500/10 rounded-full group-hover:bg-green-500/20 transition-colors">
                         <Image className="text-green-400" size={24} />
                      </div>
-                     <span className="text-sm font-medium text-slate-200">Image</span>
+                     <span className="text-xs md:text-sm font-medium text-slate-200">Image</span>
                  </button>
               </div>
           </div>
@@ -293,7 +295,7 @@ import React, { useState, useRef } from 'react';
                         {activeModal === 'file' && `Upload ${fileType?.toUpperCase()}`}
                     </h3>
 
-                    <div className="space-y-4">
+                    <div className="space-y-4 overflow-y-auto pr-1">
                         <input 
                             className={`w-full bg-slate-900 border border-slate-700 rounded-xl p-4 focus:ring-2 focus:ring-${theme.colors.primary}-500 outline-none transition-all`}
                             placeholder="Title (Optional)"

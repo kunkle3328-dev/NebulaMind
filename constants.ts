@@ -10,9 +10,23 @@ If the answer is not in the sources, state that clearly.
 Cite your sources by referring to the title of the document.
 Keep answers concise and professional.`;
 
+// --- VOICE CONFIGURATION ---
+export const VOICES = {
+  joe: [
+    { id: 'Orus', name: 'Orus (Deep, Narrative)', gender: 'Male' },
+    { id: 'Puck', name: 'Puck (Witty, Clear)', gender: 'Male' },
+    { id: 'Fenrir', name: 'Fenrir (Authoritative)', gender: 'Male' }
+  ],
+  jane: [
+    { id: 'Zephyr', name: 'Zephyr (Calm, Insightful)', gender: 'Female' },
+    { id: 'Aoede', name: 'Aoede (Expressive, Warm)', gender: 'Female' },
+    { id: 'Kore', name: 'Kore (Energetic)', gender: 'Female' }
+  ]
+};
+
 // --- THEMING SYSTEM ---
 
-export type ThemeId = 'neon' | 'obsidian' | 'arctic' | 'quantum' | 'gilded' | 'crimson';
+export type ThemeId = 'neon' | 'obsidian' | 'arctic' | 'quantum' | 'gilded' | 'crimson' | 'cyberpunk';
 
 export interface Theme {
   id: ThemeId;
@@ -81,8 +95,8 @@ export const THEMES: Record<ThemeId, Theme> = {
     name: 'Gilded Horizon',
     colors: {
       primary: 'emerald',
-      secondary: 'yellow',
-      accent: 'amber',
+      secondary: 'teal',
+      accent: 'lime',
       background: 'bg-stone-950',
       panel: 'bg-stone-900/60',
       text: 'text-emerald-50'
@@ -98,6 +112,18 @@ export const THEMES: Record<ThemeId, Theme> = {
       background: 'bg-black',
       panel: 'bg-neutral-900/80',
       text: 'text-red-50'
+    }
+  },
+  cyberpunk: {
+    id: 'cyberpunk',
+    name: 'Cyberpunk 2077',
+    colors: {
+      primary: 'fuchsia',
+      secondary: 'cyan',
+      accent: 'yellow',
+      background: 'bg-black',
+      panel: 'bg-zinc-900/40',
+      text: 'text-fuchsia-50'
     }
   }
 };
