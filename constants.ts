@@ -26,7 +26,7 @@ export const VOICES = {
 
 // --- THEMING SYSTEM ---
 
-export type ThemeId = 'neon' | 'obsidian' | 'arctic' | 'quantum' | 'gilded' | 'crimson' | 'cyberpunk';
+export type ThemeId = 'neon' | 'obsidian' | 'arctic' | 'quantum' | 'gilded' | 'crimson' | 'cyberpunk' | 'lux';
 
 export interface Theme {
   id: ThemeId;
@@ -124,6 +124,18 @@ export const THEMES: Record<ThemeId, Theme> = {
       background: 'bg-black',
       panel: 'bg-zinc-900/40',
       text: 'text-fuchsia-50'
+    }
+  },
+  lux: {
+    id: 'lux',
+    name: 'Lux Midnight',
+    colors: {
+      primary: 'violet',
+      secondary: 'amber',
+      accent: 'pink',
+      background: 'bg-[#050508]', // Deep rich black-blue
+      panel: 'bg-[#0f0f16]/60',
+      text: 'text-slate-100'
     }
   }
 };

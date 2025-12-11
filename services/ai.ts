@@ -272,7 +272,7 @@ export const speakText = async (text: string): Promise<string> => {
 };
 
 export const generateArtifact = async (
-  type: 'flashcards' | 'quiz' | 'infographic' | 'slideDeck',
+  type: 'flashcards' | 'quiz' | 'infographic' | 'slideDeck' | 'knowledgeGraph',
   sources: Source[]
 ) => {
   const context = formatContext(sources);
@@ -413,6 +413,46 @@ export const generateArtifact = async (
                 }
             };
             break;
+            case 'knowledgeGraph':
+              prompt = `Analyze the context and generate a Knowledge Graph structure.
+              
+              Task:
+              1. Identify the top 15-20 most important entities (concepts, people, events, technologies).
+              2. Create relationships between them.
+              3. For each node, provide a short 1-sentence summary definition.
+              
+              Output must be valid JSON matching the schema.`;
+              schema = {
+                  type: Type.OBJECT,
+                  properties: {
+                      nodes: {
+                          type: Type.ARRAY,
+                          items: {
+                              type: Type.OBJECT,
+                              properties: {
+                                  id: { type: Type.STRING, description: "Unique ID (e.g., 'artificial_intelligence')" },
+                                  label: { type: Type.STRING, description: "Display name (e.g., 'Artificial Intelligence')" },
+                                  category: { type: Type.STRING, description: "Category (e.g., 'Concept', 'Person', 'Tool')" },
+                                  summary: { type: Type.STRING, description: "Short definition of the concept." }
+                              },
+                              required: ['id', 'label', 'category', 'summary']
+                          }
+                      },
+                      edges: {
+                          type: Type.ARRAY,
+                          items: {
+                              type: Type.OBJECT,
+                              properties: {
+                                  source: { type: Type.STRING, description: "ID of source node" },
+                                  target: { type: Type.STRING, description: "ID of target node" },
+                                  relation: { type: Type.STRING, description: "Label for the relationship (e.g. 'enables', 'includes')" }
+                              },
+                              required: ['source', 'target', 'relation']
+                          }
+                      }
+                  }
+              };
+              break;
       }
 
       const response = await ai.models.generateContent({

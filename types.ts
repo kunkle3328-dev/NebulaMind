@@ -1,4 +1,5 @@
 
+
 export interface Source {
   id: string;
   type: 'pdf' | 'audio' | 'image' | 'website' | 'youtube' | 'copiedText';
@@ -16,7 +17,7 @@ export interface Note {
 
 export interface Artifact {
   id: string;
-  type: 'flashcards' | 'quiz' | 'infographic' | 'slideDeck' | 'audioOverview';
+  type: 'flashcards' | 'quiz' | 'infographic' | 'slideDeck' | 'audioOverview' | 'knowledgeGraph';
   title: string;
   content: any; // Structured JSON or text
   createdAt: number;

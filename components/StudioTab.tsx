@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Notebook, Artifact } from '../types';
-import { Mic, Headphones, FileText, HelpCircle, Layout, Presentation, Play, Pause, Loader2, X, Download, Wand2, Activity, Sparkles, ChevronRight, ChevronLeft, Maximize2, Minimize2, Monitor, AlertCircle, Share2, FileCode, GraduationCap, BookOpen, Volume2, ImageIcon, RotateCcw, Shuffle } from 'lucide-react';
+import { Mic, Headphones, FileText, HelpCircle, Layout, Presentation, Play, Pause, Loader2, X, Download, Wand2, Activity, Sparkles, ChevronRight, ChevronLeft, Maximize2, Minimize2, Monitor, AlertCircle, Share2, FileCode, GraduationCap, BookOpen, Volume2, ImageIcon, RotateCcw, Shuffle, Network } from 'lucide-react';
 import LiveSession from './LiveSession';
 import { useTheme, useJobs } from '../App';
 import { VOICES } from '../constants';
@@ -126,6 +126,7 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
       if (theme.id === 'gilded') { primaryColorHex = '#10b981'; secondaryColorHex = '#fbbf24'; }
       if (theme.id === 'crimson') { primaryColorHex = '#ef4444'; secondaryColorHex = '#f43f5e'; }
       if (theme.id === 'cyberpunk') { primaryColorHex = '#d946ef'; secondaryColorHex = '#06b6d4'; } // Fuchsia & Cyan
+      if (theme.id === 'lux') { primaryColorHex = '#d946ef'; secondaryColorHex = '#fbbf24'; } // Violet & Gold
 
       useEffect(() => {
           let animationId: number;
@@ -466,6 +467,327 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
     );
   };
 
+  const KnowledgeGraphViewer = ({ content }: { content: any }) => {
+     const canvasRef = useRef<HTMLCanvasElement>(null);
+     const containerRef = useRef<HTMLDivElement>(null);
+     const [selectedNode, setSelectedNode] = useState<any>(null);
+     const [scale, setScale] = useState(1);
+     const [offset, setOffset] = useState({ x: 0, y: 0 });
+     
+     // Simulation State
+     const nodesRef = useRef<any[]>([]);
+     const edgesRef = useRef<any[]>([]);
+     const isDraggingRef = useRef(false);
+     const dragNodeRef = useRef<any>(null);
+     const mouseRef = useRef({ x: 0, y: 0 });
+
+     const { theme } = useTheme();
+
+     // Init Simulation
+     useEffect(() => {
+         if (!content) return;
+         
+         const width = containerRef.current?.clientWidth || 800;
+         const height = containerRef.current?.clientHeight || 600;
+
+         // Initialize random positions near center
+         nodesRef.current = content.nodes.map((n: any) => ({
+             ...n,
+             x: width / 2 + (Math.random() - 0.5) * 100,
+             y: height / 2 + (Math.random() - 0.5) * 100,
+             vx: 0,
+             vy: 0,
+             radius: 20 + (n.category === 'Concept' ? 5 : 0) // Larger for key concepts
+         }));
+
+         edgesRef.current = content.edges.map((e: any) => ({
+             ...e,
+             source: nodesRef.current.find(n => n.id === e.source),
+             target: nodesRef.current.find(n => n.id === e.target)
+         })).filter((e: any) => e.source && e.target);
+
+     }, [content]);
+
+     // Physics Loop
+     useEffect(() => {
+         let animationId: number;
+         
+         const updatePhysics = () => {
+             const nodes = nodesRef.current;
+             const edges = edgesRef.current;
+             const width = canvasRef.current?.width || 800;
+             const height = canvasRef.current?.height || 600;
+
+             // Constants
+             const REPULSION = 2000;
+             const SPRING_LENGTH = 150;
+             const SPRING_STRENGTH = 0.05;
+             const DAMPING = 0.9;
+             const CENTER_FORCE = 0.01;
+
+             nodes.forEach(node => {
+                 let fx = 0, fy = 0;
+
+                 // 1. Repulsion (Nodes push apart)
+                 nodes.forEach(other => {
+                     if (node === other) return;
+                     const dx = node.x - other.x;
+                     const dy = node.y - other.y;
+                     const distSq = dx * dx + dy * dy;
+                     if (distSq > 0) {
+                         const force = REPULSION / Math.sqrt(distSq);
+                         fx += (dx / Math.sqrt(distSq)) * force;
+                         fy += (dy / Math.sqrt(distSq)) * force;
+                     }
+                 });
+
+                 // 2. Attraction (Edges pull together)
+                 edges.forEach(edge => {
+                     if (edge.source === node) {
+                         const other = edge.target;
+                         const dx = other.x - node.x;
+                         const dy = other.y - node.y;
+                         const dist = Math.sqrt(dx*dx + dy*dy);
+                         const force = (dist - SPRING_LENGTH) * SPRING_STRENGTH;
+                         fx += (dx/dist) * force;
+                         fy += (dy/dist) * force;
+                     } else if (edge.target === node) {
+                         const other = edge.source;
+                         const dx = other.x - node.x;
+                         const dy = other.y - node.y;
+                         const dist = Math.sqrt(dx*dx + dy*dy);
+                         const force = (dist - SPRING_LENGTH) * SPRING_STRENGTH;
+                         fx += (dx/dist) * force;
+                         fy += (dy/dist) * force;
+                     }
+                 });
+
+                 // 3. Center Gravity (Keep in view)
+                 const cx = width / 2;
+                 const cy = height / 2;
+                 fx += (cx - node.x) * CENTER_FORCE;
+                 fy += (cy - node.y) * CENTER_FORCE;
+
+                 // Apply forces
+                 if (!isDraggingRef.current || dragNodeRef.current !== node) {
+                     node.vx = (node.vx + fx * 0.05) * DAMPING;
+                     node.vy = (node.vy + fy * 0.05) * DAMPING;
+                     node.x += node.vx;
+                     node.y += node.vy;
+                 }
+                 
+                 // Boundaries
+                 node.x = Math.max(20, Math.min(width - 20, node.x));
+                 node.y = Math.max(20, Math.min(height - 20, node.y));
+             });
+         };
+
+         const draw = () => {
+             const canvas = canvasRef.current;
+             if (!canvas) return;
+             const ctx = canvas.getContext('2d');
+             if (!ctx) return;
+
+             ctx.clearRect(0, 0, canvas.width, canvas.height);
+             
+             // Draw Edges
+             edgesRef.current.forEach(edge => {
+                 ctx.beginPath();
+                 ctx.moveTo(edge.source.x, edge.source.y);
+                 ctx.lineTo(edge.target.x, edge.target.y);
+                 ctx.strokeStyle = `rgba(56, 189, 248, 0.2)`; // Cyan faint
+                 ctx.lineWidth = 1;
+                 ctx.stroke();
+                 
+                 // Label
+                 const midX = (edge.source.x + edge.target.x) / 2;
+                 const midY = (edge.source.y + edge.target.y) / 2;
+                 ctx.fillStyle = `rgba(148, 163, 184, 0.8)`;
+                 ctx.font = '10px sans-serif';
+                 ctx.fillText(edge.relation, midX, midY);
+             });
+
+             // Draw Nodes
+             nodesRef.current.forEach(node => {
+                 ctx.beginPath();
+                 ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+                 
+                 // Node Color based on selection or default
+                 if (selectedNode?.id === node.id) {
+                     ctx.fillStyle = '#f472b6'; // Pink select
+                     ctx.shadowBlur = 20;
+                     ctx.shadowColor = '#f472b6';
+                 } else {
+                     ctx.fillStyle = `rgba(34, 211, 238, 0.8)`; // Cyan default
+                     ctx.shadowBlur = 10;
+                     ctx.shadowColor = `rgba(34, 211, 238, 0.5)`;
+                 }
+                 ctx.fill();
+                 ctx.shadowBlur = 0; // Reset
+
+                 // Label
+                 ctx.fillStyle = '#fff';
+                 ctx.font = 'bold 12px sans-serif';
+                 ctx.textAlign = 'center';
+                 ctx.fillText(node.label, node.x, node.y + node.radius + 15);
+             });
+
+             updatePhysics();
+             animationId = requestAnimationFrame(draw);
+         };
+
+         draw();
+         return () => cancelAnimationFrame(animationId);
+     }, [content]);
+
+     // Mouse Handlers
+     const handleMouseDown = (e: React.MouseEvent) => {
+         const rect = canvasRef.current!.getBoundingClientRect();
+         const x = e.clientX - rect.left;
+         const y = e.clientY - rect.top;
+         
+         // Find clicked node
+         const clickedNode = nodesRef.current.find(n => {
+             const dist = Math.sqrt((n.x - x)**2 + (n.y - y)**2);
+             return dist < n.radius + 10;
+         });
+
+         if (clickedNode) {
+             isDraggingRef.current = true;
+             dragNodeRef.current = clickedNode;
+             setSelectedNode(clickedNode);
+         } else {
+             setSelectedNode(null);
+         }
+     };
+
+     const handleMouseMove = (e: React.MouseEvent) => {
+         if (isDraggingRef.current && dragNodeRef.current) {
+             const rect = canvasRef.current!.getBoundingClientRect();
+             dragNodeRef.current.x = e.clientX - rect.left;
+             dragNodeRef.current.y = e.clientY - rect.top;
+             dragNodeRef.current.vx = 0;
+             dragNodeRef.current.vy = 0;
+         }
+     };
+
+     const handleMouseUp = () => {
+         isDraggingRef.current = false;
+         dragNodeRef.current = null;
+     };
+
+     // Touch Handlers for Mobile Drag & Drop
+     const handleTouchStart = (e: React.TouchEvent) => {
+         if (e.target === canvasRef.current) e.preventDefault();
+         const rect = canvasRef.current!.getBoundingClientRect();
+         const touch = e.touches[0];
+         const x = touch.clientX - rect.left;
+         const y = touch.clientY - rect.top;
+         
+         // Find clicked node (with slightly larger touch target area)
+         const clickedNode = nodesRef.current.find(n => {
+             const dist = Math.sqrt((n.x - x)**2 + (n.y - y)**2);
+             return dist < n.radius + 20; 
+         });
+
+         if (clickedNode) {
+             isDraggingRef.current = true;
+             dragNodeRef.current = clickedNode;
+             setSelectedNode(clickedNode);
+         }
+     };
+
+     const handleTouchMove = (e: React.TouchEvent) => {
+         if (isDraggingRef.current && dragNodeRef.current) {
+             e.preventDefault(); // Stop scrolling while dragging
+             const rect = canvasRef.current!.getBoundingClientRect();
+             const touch = e.touches[0];
+             dragNodeRef.current.x = touch.clientX - rect.left;
+             dragNodeRef.current.y = touch.clientY - rect.top;
+             dragNodeRef.current.vx = 0;
+             dragNodeRef.current.vy = 0;
+         }
+     };
+
+     const handleTouchEnd = () => {
+         isDraggingRef.current = false;
+         dragNodeRef.current = null;
+     };
+
+     return (
+         <div className="flex h-full" ref={containerRef}>
+             {/* Graph Area */}
+             <div className="flex-1 relative bg-slate-950/50 overflow-hidden cursor-crosshair">
+                 <canvas 
+                    ref={canvasRef}
+                    width={containerRef.current?.clientWidth ? containerRef.current.clientWidth - 300 : 800} // Dynamic width minus sidebar
+                    height={containerRef.current?.clientHeight || 600}
+                    onMouseDown={handleMouseDown}
+                    onMouseMove={handleMouseMove}
+                    onMouseUp={handleMouseUp}
+                    onMouseLeave={handleMouseUp}
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                    className="block touch-none" // prevent default touch actions like scroll
+                 />
+                 <div className="absolute top-4 left-4 pointer-events-none">
+                     <p className="text-xs text-slate-500 bg-slate-900/80 px-2 py-1 rounded border border-white/5">
+                        Drag nodes to rearrange • Click to view details
+                     </p>
+                 </div>
+             </div>
+             
+             {/* Detail Sidebar */}
+             <div className="w-80 border-l border-white/10 bg-slate-900/80 p-6 flex flex-col backdrop-blur-xl">
+                 <h3 className="text-sm font-bold uppercase tracking-widest text-slate-500 mb-6 flex items-center gap-2">
+                     <Network size={16} /> Knowledge Entity
+                 </h3>
+                 
+                 {selectedNode ? (
+                     <div className="animate-in slide-in-from-right-4 fade-in duration-300">
+                         <div className={`w-12 h-12 rounded-full bg-${theme.colors.primary}-500/20 flex items-center justify-center mb-4 border border-${theme.colors.primary}-500/50`}>
+                             <Sparkles className={`text-${theme.colors.primary}-400`} size={24} />
+                         </div>
+                         <h2 className="text-2xl font-bold text-white mb-2">{selectedNode.label}</h2>
+                         <span className="inline-block px-2 py-1 rounded bg-slate-800 text-xs text-slate-400 mb-6 border border-white/5">
+                             {selectedNode.category}
+                         </span>
+                         
+                         <p className="text-slate-300 leading-relaxed text-sm">
+                             {selectedNode.summary}
+                         </p>
+
+                         <div className="mt-8 pt-6 border-t border-white/10">
+                             <h4 className="text-xs font-bold text-slate-500 mb-3">Connections</h4>
+                             <ul className="space-y-2">
+                                 {edgesRef.current
+                                    .filter(e => e.source.id === selectedNode.id || e.target.id === selectedNode.id)
+                                    .map((e, i) => (
+                                     <li key={i} className="text-xs text-slate-400 flex items-center gap-2">
+                                         <div className="w-1.5 h-1.5 rounded-full bg-cyan-500"></div>
+                                         <span className="opacity-50">{e.relation}</span>
+                                         <span className="text-slate-200">
+                                             {e.source.id === selectedNode.id ? e.target.label : e.source.label}
+                                         </span>
+                                     </li>
+                                 ))}
+                             </ul>
+                         </div>
+                     </div>
+                 ) : (
+                     <div className="flex flex-col items-center justify-center h-full text-center text-slate-500 space-y-4">
+                         <div className="w-16 h-16 rounded-full bg-slate-800/50 flex items-center justify-center">
+                             <Monitor size={32} className="opacity-50" />
+                         </div>
+                         <p className="text-sm">Select a node to inspect its neural pathways.</p>
+                     </div>
+                 )}
+             </div>
+         </div>
+     );
+  };
+
   const SlidePlayer = ({ deck }: { deck: any }) => {
      const [currentSlide, setCurrentSlide] = useState(0);
       const [showNotes, setShowNotes] = useState(false);
@@ -554,7 +876,7 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
                     </div>
                 </div>
                 
-                <div className={`flex-1 bg-slate-950 min-h-0 ${artifact.type === 'audioOverview' || artifact.type === 'slideDeck' || artifact.type === 'flashcards' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+                <div className={`flex-1 bg-slate-950 min-h-0 ${artifact.type === 'audioOverview' || artifact.type === 'slideDeck' || artifact.type === 'flashcards' || artifact.type === 'knowledgeGraph' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
                     {/* Render content based on type */}
                     {artifact.type === 'audioOverview' && (
                         <div className="flex flex-col md:grid md:grid-cols-2 h-full">
@@ -621,6 +943,9 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
 
                     {/* Flashcard Player */}
                     {artifact.type === 'flashcards' && <FlashcardPlayer content={artifact.content} />}
+
+                    {/* Neural Knowledge Graph */}
+                    {artifact.type === 'knowledgeGraph' && <KnowledgeGraphViewer content={artifact.content} />}
                     
                     {/* Fallback for others */}
                     {(artifact.type === 'quiz') && (
@@ -798,6 +1123,7 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
                 { id: 'quiz', label: 'Quiz', icon: HelpCircle, color: 'text-purple-400', desc: 'Test your knowledge' },
                 { id: 'infographic', label: 'Infographic', icon: FileText, color: 'text-green-400', desc: 'Visual outline' },
                 { id: 'slideDeck', label: 'Slide Deck', icon: Presentation, color: 'text-rose-400', desc: 'Presentation outline' },
+                { id: 'knowledgeGraph', label: 'Neural Graph', icon: Network, color: 'text-cyan-400', desc: '3D Knowledge Map' },
             ].map((tool) => (
                 <button
                     key={tool.id}
@@ -852,6 +1178,7 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
                                         {art.type === 'quiz' && <HelpCircle className="text-purple-400" size={20} />}
                                         {art.type === 'infographic' && <FileText className="text-green-400" size={20} />}
                                         {art.type === 'slideDeck' && <Presentation className="text-rose-400" size={20} />}
+                                        {art.type === 'knowledgeGraph' && <Network className="text-cyan-400" size={20} />}
                                     </>
                                 )}
                             </div>

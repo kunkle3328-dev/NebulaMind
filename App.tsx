@@ -178,6 +178,15 @@ const Dashboard: React.FC = () => {
              <div className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-emerald-900/20 rounded-full blur-[100px] pointer-events-none"></div>
           </>
       )}
+      {theme.id === 'lux' && (
+          <>
+             <div className="absolute inset-0 bg-[conic-gradient(at_top_right,_var(--tw-gradient-stops))] from-violet-950 via-slate-950 to-black opacity-80"></div>
+             <div className="absolute top-0 w-full h-[1px] bg-gradient-to-r from-transparent via-amber-500/50 to-transparent"></div>
+             <div className="absolute top-0 left-1/3 w-96 h-96 bg-violet-600/10 rounded-full blur-[120px] animate-pulse-slow"></div>
+             <div className="absolute bottom-0 right-1/3 w-[600px] h-[400px] bg-indigo-600/10 rounded-full blur-[120px]"></div>
+             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-10 mix-blend-overlay"></div>
+          </>
+      )}
       {(theme.id === 'neon' || theme.id === 'arctic' || theme.id === 'obsidian') && (
           <div className={`absolute top-0 left-1/4 w-96 h-96 bg-${theme.colors.secondary}-900/10 rounded-full blur-[100px] pointer-events-none transition-colors duration-1000`}></div>
       )}
