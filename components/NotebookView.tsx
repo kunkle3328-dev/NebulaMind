@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Notebook, Source } from '../types';
 import { ArrowLeft, MessageSquare, Layers, FolderOpen, Palette, ChevronLeft, ChevronRight, Edit2, Check, X, Share2, Copy } from 'lucide-react';
@@ -64,7 +65,7 @@ const NotebookView: React.FC<Props> = ({ notebook, onUpdate }) => {
   };
 
   return (
-    <div className={`min-h-screen ${theme.colors.background} ${theme.colors.text} flex flex-col md:flex-row transition-colors duration-700`}>
+    <div className={`min-h-screen bg-transparent ${theme.colors.text} flex flex-col md:flex-row transition-colors duration-700`}>
       
       {/* Sidebar (Desktop) / Bottom Nav (Mobile) */}
       <nav className={`
@@ -200,11 +201,7 @@ const NotebookView: React.FC<Props> = ({ notebook, onUpdate }) => {
       </nav>
 
       {/* Main Content Area */}
-      <main className={`flex-1 overflow-y-auto h-[calc(100vh-64px)] md:h-screen relative ${theme.colors.background} transition-colors duration-700 pb-20 md:pb-0`}>
-        {/* Ambient Backgrounds for Content Area */}
-        {theme.id === 'quantum' && <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-violet-900/10 rounded-full blur-[100px] pointer-events-none"></div>}
-        {theme.id === 'gilded' && <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-emerald-900/10 rounded-full blur-[100px] pointer-events-none"></div>}
-        {theme.id === 'crimson' && <div className="absolute bottom-0 right-0 w-[600px] h-[600px] bg-rose-900/10 rounded-full blur-[120px] pointer-events-none animate-pulse-slow"></div>}
+      <main className={`flex-1 overflow-y-auto h-[calc(100vh-64px)] md:h-screen relative bg-transparent transition-colors duration-700 pb-20 md:pb-0`}>
         
         {/* Global App Header */}
         <header className="sticky top-0 z-30 px-4 md:px-8 py-3 md:py-4 flex justify-between md:justify-end items-center backdrop-blur-md border-b border-white/5 bg-black/20 h-16">

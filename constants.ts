@@ -1,5 +1,4 @@
 
-
 export const APP_NAME = "Nebula Mind";
 
 export const AUDIO_SAMPLE_RATE = 24000; // Gemini Live standard
@@ -26,32 +25,56 @@ export const VOICES = {
 
 // --- THEMING SYSTEM ---
 
-export type ThemeId = 'neon' | 'obsidian' | 'arctic' | 'quantum' | 'gilded' | 'crimson' | 'cyberpunk' | 'lux';
+export type ThemeId = 'neon' | 'obsidian' | 'arctic' | 'quantum' | 'gilded' | 'crimson' | 'cyberpunk' | 'lux' | 'nebula_mind';
 
 export interface Theme {
   id: ThemeId;
   name: string;
   colors: {
-    primary: string; // Tailwind color name (e.g., 'cyan')
-    secondary: string; // Tailwind color name (e.g., 'blue')
-    accent: string; // Tailwind color name (e.g., 'rose')
-    background: string; // Tailwind class (e.g., 'bg-slate-950')
+    primary: string; // Tailwind color name
+    secondary: string; // Tailwind color name
+    accent: string; // Tailwind color name
+    background: string; // Tailwind class
     panel: string; // Tailwind class for glass panels
     text: string; // Tailwind class for primary text
   };
 }
 
 export const THEMES: Record<ThemeId, Theme> = {
+  nebula_mind: {
+    id: 'nebula_mind',
+    name: 'Nebula Mind',
+    colors: {
+      primary: 'purple',
+      secondary: 'pink',
+      accent: 'cyan',
+      background: 'bg-[#090014]', // Very Deep Purple/Black
+      panel: 'bg-[#1e1b4b]/40', 
+      text: 'text-purple-50'
+    }
+  },
   neon: {
     id: 'neon',
     name: 'Neon Nebula',
     colors: {
       primary: 'cyan',
-      secondary: 'blue',
-      accent: 'rose',
-      background: 'bg-slate-950',
-      panel: 'bg-slate-900/60',
-      text: 'text-slate-100'
+      secondary: 'fuchsia', 
+      accent: 'violet',
+      background: 'bg-black', // Pure Black for high contrast
+      panel: 'bg-zinc-900/60',
+      text: 'text-cyan-50'
+    }
+  },
+  arctic: {
+    id: 'arctic',
+    name: 'Arctic Frost',
+    colors: {
+      primary: 'sky',
+      secondary: 'teal',
+      accent: 'indigo',
+      background: 'bg-[#0f172a]', // Slate-900
+      panel: 'bg-slate-800/50', 
+      text: 'text-sky-50'
     }
   },
   obsidian: {
@@ -61,21 +84,9 @@ export const THEMES: Record<ThemeId, Theme> = {
       primary: 'amber',
       secondary: 'orange',
       accent: 'red',
-      background: 'bg-neutral-950',
-      panel: 'bg-neutral-900/60',
-      text: 'text-neutral-100'
-    }
-  },
-  arctic: {
-    id: 'arctic',
-    name: 'Arctic Frost',
-    colors: {
-      primary: 'sky',
-      secondary: 'indigo',
-      accent: 'teal',
-      background: 'bg-slate-900',
-      panel: 'bg-slate-800/60',
-      text: 'text-slate-50'
+      background: 'bg-[#0c0a09]', // Stone-950
+      panel: 'bg-stone-900/60',
+      text: 'text-amber-50'
     }
   },
   quantum: {
@@ -83,10 +94,10 @@ export const THEMES: Record<ThemeId, Theme> = {
     name: 'Quantum Pulse',
     colors: {
       primary: 'violet',
-      secondary: 'fuchsia',
-      accent: 'cyan',
-      background: 'bg-black',
-      panel: 'bg-zinc-900/80',
+      secondary: 'indigo',
+      accent: 'fuchsia',
+      background: 'bg-[#020617]', 
+      panel: 'bg-violet-950/30',
       text: 'text-violet-50'
     }
   },
@@ -95,10 +106,10 @@ export const THEMES: Record<ThemeId, Theme> = {
     name: 'Gilded Horizon',
     colors: {
       primary: 'emerald',
-      secondary: 'teal',
+      secondary: 'yellow',
       accent: 'lime',
-      background: 'bg-stone-950',
-      panel: 'bg-stone-900/60',
+      background: 'bg-[#022c22]', // Deep Emerald
+      panel: 'bg-emerald-900/40',
       text: 'text-emerald-50'
     }
   },
@@ -109,8 +120,8 @@ export const THEMES: Record<ThemeId, Theme> = {
       primary: 'red',
       secondary: 'rose',
       accent: 'orange',
-      background: 'bg-black',
-      panel: 'bg-neutral-900/80',
+      background: 'bg-[#1a0505]', 
+      panel: 'bg-red-950/30',
       text: 'text-red-50'
     }
   },
@@ -121,8 +132,8 @@ export const THEMES: Record<ThemeId, Theme> = {
       primary: 'fuchsia',
       secondary: 'cyan',
       accent: 'yellow',
-      background: 'bg-black',
-      panel: 'bg-zinc-900/40',
+      background: 'bg-[#050505]',
+      panel: 'bg-zinc-900/50',
       text: 'text-fuchsia-50'
     }
   },
@@ -133,9 +144,9 @@ export const THEMES: Record<ThemeId, Theme> = {
       primary: 'violet',
       secondary: 'amber',
       accent: 'pink',
-      background: 'bg-[#050508]', // Deep rich black-blue
-      panel: 'bg-[#0f0f16]/60',
-      text: 'text-slate-100'
+      background: 'bg-[#0a0a12]', 
+      panel: 'bg-[#151520]/60',
+      text: 'text-indigo-50'
     }
   }
 };

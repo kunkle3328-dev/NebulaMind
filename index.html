@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>NeonNotebook AI</title>
+    <title>Nebula Mind</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,7 +11,7 @@
     <style>
       body {
         font-family: 'Inter', sans-serif;
-        background-color: #020617; /* slate-950 */
+        background-color: transparent; /* Changed from color to transparent to allow App background to show */
         color: #f1f5f9;
         overflow-x: hidden;
       }
@@ -24,7 +24,7 @@
         height: 8px;
       }
       ::-webkit-scrollbar-track {
-        background: #0f172a;
+        background: rgba(15, 23, 42, 0.5);
       }
       ::-webkit-scrollbar-thumb {
         background: #334155;
@@ -39,13 +39,6 @@
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
         border: 1px solid rgba(255, 255, 255, 0.1);
-      }
-      
-      .neon-glow-blue {
-        box-shadow: 0 0 10px rgba(34, 211, 238, 0.3);
-      }
-      .neon-glow-red {
-        box-shadow: 0 0 10px rgba(244, 63, 94, 0.3);
       }
     </style>
   <script type="importmap">

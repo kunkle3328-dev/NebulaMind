@@ -1,9 +1,10 @@
-import React, { useState, useEffect, createContext, useContext, useCallback } from 'react';
+
+import React, { useState, useEffect, createContext, useContext, useCallback, useMemo } from 'react';
 import { HashRouter, Routes, Route, useNavigate, useParams, Link } from 'react-router-dom';
 import { Notebook, Notification, BackgroundJob, Artifact } from './types';
 import { getNotebooks, createNotebook, getNotebookById, saveNotebook } from './services/storage';
 import { THEMES, ThemeId, Theme } from './constants';
-import { Plus, Book, MoreVertical, Sparkles, Palette, Check, Zap, X, Bell, Loader2, Edit2 } from 'lucide-react';
+import { Plus, Book, MoreVertical, Sparkles, Palette, Check, Zap, X, Bell, Loader2, Edit2, Play, Pause, Power } from 'lucide-react';
 import NotebookView from './components/NotebookView';
 import SplashScreen from './components/SplashScreen';
 import { generateArtifact, generateAudioOverview } from './services/ai';
@@ -12,11 +13,15 @@ import { generateArtifact, generateAudioOverview } from './services/ai';
 interface ThemeContextType {
   theme: Theme;
   setThemeId: (id: ThemeId) => void;
+  animationsEnabled: boolean;
+  setAnimationsEnabled: (enabled: boolean) => void;
 }
 
 export const ThemeContext = createContext<ThemeContextType>({
   theme: THEMES.neon,
-  setThemeId: () => {}
+  setThemeId: () => {},
+  animationsEnabled: true,
+  setAnimationsEnabled: () => {}
 });
 
 export const useTheme = () => useContext(ThemeContext);
@@ -38,17 +43,13 @@ export const JobContext = createContext<JobContextType>({
 
 export const useJobs = () => useContext(JobContext);
 
-// NEW ADVANCED LOGO COMPONENT (SVG)
 export const NebulaLogo: React.FC<{ size?: 'sm' | 'lg' }> = ({ size = 'sm' }) => {
     const { theme } = useTheme();
     const isLg = size === 'lg';
     
-    // Dynamic gradients based on theme
     const primary = theme.colors.primary;
     const secondary = theme.colors.secondary;
     
-    const sizePx = isLg ? 48 : 32;
-
     return (
         <div className="flex items-center gap-3 select-none">
              <div className={`relative ${isLg ? 'w-12 h-12' : 'w-8 h-8'} transition-all duration-500`}>
@@ -67,13 +68,11 @@ export const NebulaLogo: React.FC<{ size?: 'sm' | 'lg' }> = ({ size = 'sm' }) =>
                         </filter>
                     </defs>
                     
-                    {/* Neural Connections */}
                     <path d="M50 20 L20 80 L80 80 Z" fill="none" stroke={`url(#grad-${primary})`} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" className="animate-pulse-slow" filter="url(#glow)" />
                     <circle cx="50" cy="20" r="8" fill={`var(--color-${primary}-500)`} />
                     <circle cx="20" cy="80" r="8" fill={`var(--color-${secondary}-500)`} />
                     <circle cx="80" cy="80" r="8" fill={`var(--color-${theme.colors.accent}-500)`} />
                     
-                    {/* Inner Circuit */}
                     <path d="M50 20 L50 50 L20 80 M50 50 L80 80" stroke="white" strokeWidth="2" strokeOpacity="0.5" />
                     <circle cx="50" cy="50" r="4" fill="white" className="animate-ping" style={{ animationDuration: '3s' }} />
                 </svg>
@@ -86,7 +85,7 @@ export const NebulaLogo: React.FC<{ size?: 'sm' | 'lg' }> = ({ size = 'sm' }) =>
 };
 
 export const ThemeSelector: React.FC = () => {
-  const { theme, setThemeId } = useTheme();
+  const { theme, setThemeId, animationsEnabled, setAnimationsEnabled } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -103,26 +102,247 @@ export const ThemeSelector: React.FC = () => {
       {isOpen && (
         <>
             <div className="fixed inset-0 z-[90] cursor-default" onClick={() => setIsOpen(false)} />
-            <div className="absolute right-0 mt-2 w-56 rounded-xl border border-white/10 bg-slate-950/95 backdrop-blur-xl shadow-2xl p-2 animate-in fade-in zoom-in-95 origin-top-right z-[100]">
-            <div className="px-3 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider">Select Theme</div>
-            {Object.values(THEMES).map((t) => (
-                <button
-                key={t.id}
-                onClick={() => { setThemeId(t.id); setIsOpen(false); }}
-                className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between transition-colors mb-1 ${theme.id === t.id ? `bg-${t.colors.primary}-500/20 text-${t.colors.primary}-400` : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
-                >
-                <div className="flex items-center gap-3">
-                    <div className={`w-4 h-4 rounded-full bg-gradient-to-br from-${t.colors.primary}-400 to-${t.colors.secondary}-500 shadow-[0_0_8px_currentColor]`}></div>
-                    <span className={theme.id === t.id ? 'font-semibold' : ''}>{t.name}</span>
+            <div className="absolute right-0 mt-2 w-64 rounded-xl border border-white/10 bg-slate-950/95 backdrop-blur-xl shadow-2xl p-2 animate-in fade-in zoom-in-95 origin-top-right z-[100]">
+            
+            {/* Animation Toggle */}
+            <div className="p-3 mb-2 bg-white/5 rounded-lg flex items-center justify-between">
+                <div className="flex items-center gap-2 text-slate-300">
+                    <Sparkles size={14} className={animationsEnabled ? `text-${theme.colors.accent}-400` : 'text-slate-500'} />
+                    <span className="text-xs font-semibold">Moving Backgrounds</span>
                 </div>
-                {theme.id === t.id && <Check size={14} />}
+                <button 
+                    onClick={(e) => { e.stopPropagation(); setAnimationsEnabled(!animationsEnabled); }}
+                    className={`w-10 h-5 rounded-full relative transition-colors ${animationsEnabled ? `bg-${theme.colors.primary}-600` : 'bg-slate-700'}`}
+                >
+                    <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all shadow-sm ${animationsEnabled ? 'left-6' : 'left-1'}`}></div>
                 </button>
-            ))}
+            </div>
+
+            <div className="px-3 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider border-t border-white/5">Select Theme</div>
+            <div className="max-h-[300px] overflow-y-auto">
+                {Object.values(THEMES).map((t) => (
+                    <button
+                    key={t.id}
+                    onClick={() => { setThemeId(t.id); setIsOpen(false); }}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm flex items-center justify-between transition-colors mb-1 ${theme.id === t.id ? `bg-${t.colors.primary}-500/20 text-${t.colors.primary}-400` : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+                    >
+                    <div className="flex items-center gap-3">
+                        <div className={`w-4 h-4 rounded-full bg-gradient-to-br from-${t.colors.primary}-400 to-${t.colors.secondary}-500 shadow-[0_0_8px_currentColor]`}></div>
+                        <span className={theme.id === t.id ? 'font-semibold' : ''}>{t.name}</span>
+                    </div>
+                    {theme.id === t.id && <Check size={14} />}
+                    </button>
+                ))}
+            </div>
             </div>
         </>
       )}
     </div>
   );
+};
+
+// --- ROBUST CSS ANIMATIONS ---
+const GlobalBackground: React.FC = () => {
+    const { theme, animationsEnabled } = useTheme();
+
+    // Use standard arrays for mapping to avoid hook complexity in rendering
+    const snowCount = 50;
+    const starCount = 6; 
+    const emberCount = 20;
+
+    return (
+        <div className={`fixed inset-0 -z-10 overflow-hidden transition-colors duration-1000 ${theme.colors.background} pointer-events-none`}>
+             <style>{`
+                /* KEYFRAMES */
+                @keyframes twinkle {
+                    0%, 100% { opacity: 0.8; transform: scale(1); }
+                    50% { opacity: 0.3; transform: scale(0.8); }
+                }
+                @keyframes shooting {
+                    0% { transform: translateX(0) translateY(0) rotate(-45deg); opacity: 1; }
+                    100% { transform: translateX(500px) translateY(500px) rotate(-45deg); opacity: 0; }
+                }
+                @keyframes fall {
+                    0% { transform: translateY(-10vh) translateX(0); opacity: 0; }
+                    10% { opacity: 0.8; }
+                    100% { transform: translateY(110vh) translateX(20px); opacity: 0; }
+                }
+                @keyframes rise {
+                    0% { transform: translateY(110vh) scale(0.5); opacity: 0; }
+                    20% { opacity: 0.8; }
+                    100% { transform: translateY(-10vh) scale(1.5); opacity: 0; }
+                }
+                @keyframes scan {
+                    0% { top: -10%; } 100% { top: 110%; }
+                }
+                @keyframes spin-slow {
+                    from { transform: translate(-50%, -50%) rotate(0deg); }
+                    to { transform: translate(-50%, -50%) rotate(360deg); }
+                }
+                @keyframes spin-reverse {
+                    from { transform: translate(-50%, -50%) rotate(360deg); }
+                    to { transform: translate(-50%, -50%) rotate(0deg); }
+                }
+                @keyframes pulse-glow {
+                    0%, 100% { opacity: 0.3; transform: scale(1); }
+                    50% { opacity: 0.6; transform: scale(1.1); }
+                }
+
+                /* UTILITY CLASSES */
+                .star-static {
+                    position: absolute;
+                    background: white;
+                    border-radius: 50%;
+                    animation: twinkle 4s infinite ease-in-out;
+                }
+                
+                .shooting-star {
+                    position: absolute;
+                    width: 100px;
+                    height: 2px;
+                    background: linear-gradient(90deg, rgba(255,255,255,1), transparent);
+                    filter: drop-shadow(0 0 4px white);
+                    opacity: 0;
+                }
+
+                .snow {
+                    position: absolute;
+                    background: white;
+                    border-radius: 50%;
+                }
+
+                .ember {
+                    position: absolute;
+                    background: #f97316;
+                    border-radius: 50%;
+                    box-shadow: 0 0 10px #f97316;
+                }
+
+                .scanline {
+                    position: absolute;
+                    left: 0;
+                    width: 100%;
+                    height: 2px;
+                    background: rgba(6, 182, 212, 0.5);
+                    box-shadow: 0 0 20px rgba(6, 182, 212, 0.8);
+                    animation: scan 4s linear infinite;
+                }
+
+                .atom-ring {
+                    position: absolute;
+                    top: 50%; left: 50%;
+                    border-radius: 50%;
+                    border: 1px solid rgba(139, 92, 246, 0.3);
+                }
+            `}</style>
+
+            {/* --- THEME SPECIFIC LAYERS (Only render if animationsEnabled) --- */}
+            
+            {animationsEnabled && (
+                <>
+                    {/* 1. NEBULA MIND (Galaxy Stars + Blobs) */}
+                    {theme.id === 'nebula_mind' && (
+                        <>
+                            {/* Background Blobs */}
+                            <div className="absolute top-0 left-0 w-[80vw] h-[80vw] bg-purple-900/30 rounded-full blur-[120px] mix-blend-screen animate-pulse duration-[10s]"></div>
+                            <div className="absolute bottom-0 right-0 w-[60vw] h-[60vw] bg-pink-900/20 rounded-full blur-[120px] mix-blend-screen animate-pulse duration-[8s]"></div>
+                            {/* Stars */}
+                            {Array.from({ length: 50 }).map((_, i) => (
+                                <div key={i} className="star-static" style={{
+                                    top: `${Math.random() * 100}%`,
+                                    left: `${Math.random() * 100}%`,
+                                    width: `${Math.random() * 2 + 1}px`,
+                                    height: `${Math.random() * 2 + 1}px`,
+                                    animationDelay: `${Math.random() * 5}s`
+                                }} />
+                            ))}
+                        </>
+                    )}
+
+                    {/* 2. NEON NEBULA (Cyber Grid + Shooting Stars) */}
+                    {theme.id === 'neon' && (
+                        <>
+                            {/* Grid */}
+                            <div className="absolute inset-0 bg-[linear-gradient(rgba(34,211,238,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(34,211,238,0.1)_1px,transparent_1px)] bg-[size:50px_50px] opacity-20 perspective-[500px]" style={{ transform: 'perspective(500px) rotateX(20deg) scale(1.5)' }}></div>
+                            {/* Glow */}
+                            <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-cyan-500/10 rounded-full blur-[100px]"></div>
+                            {/* Shooting Stars */}
+                            {Array.from({ length: starCount }).map((_, i) => (
+                                <div key={i} className="shooting-star" style={{
+                                    top: `${Math.random() * 50}%`,
+                                    left: `${Math.random() * 80}%`,
+                                    animation: `shooting ${3 + Math.random() * 3}s linear infinite`,
+                                    animationDelay: `${Math.random() * 10}s`
+                                }} />
+                            ))}
+                        </>
+                    )}
+
+                    {/* 3. ARCTIC FROST (Snow + Aurora) */}
+                    {theme.id === 'arctic' && (
+                        <>
+                            <div className="absolute top-0 w-full h-[60vh] bg-gradient-to-b from-teal-900/30 via-sky-900/10 to-transparent blur-3xl opacity-50"></div>
+                            {Array.from({ length: snowCount }).map((_, i) => (
+                                <div key={i} className="snow" style={{
+                                    left: `${Math.random() * 100}%`,
+                                    width: `${Math.random() * 3 + 1}px`,
+                                    height: `${Math.random() * 3 + 1}px`,
+                                    animation: `fall ${5 + Math.random() * 5}s linear infinite`,
+                                    animationDelay: `${Math.random() * 5}s`,
+                                    opacity: Math.random() * 0.7
+                                }} />
+                            ))}
+                        </>
+                    )}
+
+                    {/* 4. CYBERPUNK (Scanlines) */}
+                    {theme.id === 'cyberpunk' && (
+                        <>
+                            <div className="absolute inset-0 bg-[linear-gradient(rgba(255,0,255,0.05)_1px,transparent_1px)] bg-[size:100%_4px]"></div>
+                            <div className="scanline"></div>
+                        </>
+                    )}
+
+                    {/* 5. CRIMSON (Embers) */}
+                    {theme.id === 'crimson' && (
+                        <>
+                            <div className="absolute bottom-0 w-full h-[50vh] bg-gradient-to-t from-red-900/30 to-transparent blur-3xl"></div>
+                            {Array.from({ length: emberCount }).map((_, i) => (
+                                <div key={i} className="ember" style={{
+                                    left: `${Math.random() * 100}%`,
+                                    width: `${Math.random() * 4 + 2}px`,
+                                    height: `${Math.random() * 4 + 2}px`,
+                                    animation: `rise ${3 + Math.random() * 4}s linear infinite`,
+                                    animationDelay: `${Math.random() * 5}s`,
+                                    opacity: Math.random()
+                                }} />
+                            ))}
+                        </>
+                    )}
+
+                    {/* 6. QUANTUM (Atom Rings) */}
+                    {theme.id === 'quantum' && (
+                        <>
+                            <div className="atom-ring w-[60vh] h-[60vh] animate-[spin-slow_20s_linear_infinite]"></div>
+                            <div className="atom-ring w-[40vh] h-[40vh] animate-[spin-reverse_15s_linear_infinite] border-fuchsia-500/30"></div>
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[2px] h-[2px] shadow-[0_0_100px_10px_rgba(139,92,246,0.5)]"></div>
+                        </>
+                    )}
+                    
+                    {/* 7. GILDED & OBSIDIAN (Ambient Glow) */}
+                    {(theme.id === 'gilded' || theme.id === 'obsidian' || theme.id === 'lux') && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <div className={`w-[60vw] h-[60vw] rounded-full blur-[150px] animate-[pulse-glow_8s_ease-in-out_infinite] ${
+                                theme.id === 'gilded' ? 'bg-emerald-900/20' : 
+                                theme.id === 'obsidian' ? 'bg-amber-900/10' : 
+                                'bg-violet-900/20'
+                            }`}></div>
+                        </div>
+                    )}
+                </>
+            )}
+        </div>
+    );
 };
 
 // 1. Dashboard Component
@@ -147,50 +367,7 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className={`min-h-screen ${theme.colors.background} p-4 md:p-8 relative transition-colors duration-700`}>
-      {/* Advanced Background Effects */}
-      {theme.id === 'cyberpunk' && (
-          <>
-             {/* Cyberpunk Grid */}
-             <div className="absolute inset-0 bg-[linear-gradient(to_right,#222_1px,transparent_1px),linear-gradient(to_bottom,#222_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] pointer-events-none opacity-50"></div>
-             {/* Neon Ambient Glows */}
-             <div className="absolute top-0 left-0 right-0 h-[500px] bg-gradient-to-b from-fuchsia-900/30 via-cyan-900/10 to-transparent blur-[120px] pointer-events-none"></div>
-             <div className="absolute bottom-0 left-0 right-0 h-[400px] bg-gradient-to-t from-cyan-900/20 via-purple-900/10 to-transparent blur-[100px] pointer-events-none"></div>
-          </>
-      )}
-      {theme.id === 'crimson' && (
-          <>
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(20,0,0,0.5)_2px,transparent_2px),linear-gradient(90deg,rgba(20,0,0,0.5)_2px,transparent_2px)] bg-[size:40px_40px] opacity-20 pointer-events-none"></div>
-            <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_50%,transparent_0%,black_90%)] pointer-events-none"></div>
-            <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-red-900/10 rounded-full blur-[100px] animate-pulse-slow pointer-events-none"></div>
-          </>
-      )}
-      {theme.id === 'quantum' && (
-          <>
-             <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,_rgba(139,92,246,0.15),transparent_70%)] animate-pulse-slow"></div>
-             <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-violet-900/20 rounded-full blur-[120px] pointer-events-none animate-blob"></div>
-             <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-fuchsia-900/20 rounded-full blur-[100px] pointer-events-none animate-blob animation-delay-2000"></div>
-          </>
-      )}
-      {theme.id === 'gilded' && (
-          <>
-             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(16,185,129,0.1),transparent_80%)]"></div>
-             <div className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-emerald-900/20 rounded-full blur-[100px] pointer-events-none"></div>
-          </>
-      )}
-      {theme.id === 'lux' && (
-          <>
-             <div className="absolute inset-0 bg-[conic-gradient(at_top_right,_var(--tw-gradient-stops))] from-violet-950 via-slate-950 to-black opacity-80"></div>
-             <div className="absolute top-0 w-full h-[1px] bg-gradient-to-r from-transparent via-amber-500/50 to-transparent"></div>
-             <div className="absolute top-0 left-1/3 w-96 h-96 bg-violet-600/10 rounded-full blur-[120px] animate-pulse-slow"></div>
-             <div className="absolute bottom-0 right-1/3 w-[600px] h-[400px] bg-indigo-600/10 rounded-full blur-[120px]"></div>
-             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-10 mix-blend-overlay"></div>
-          </>
-      )}
-      {(theme.id === 'neon' || theme.id === 'arctic' || theme.id === 'obsidian') && (
-          <div className={`absolute top-0 left-1/4 w-96 h-96 bg-${theme.colors.secondary}-900/10 rounded-full blur-[100px] pointer-events-none transition-colors duration-1000`}></div>
-      )}
-
+    <div className={`min-h-screen p-4 md:p-8 relative z-10`}>
       <header className="flex justify-between items-center mb-10 md:mb-16 relative z-50">
         <NebulaLogo size="lg" />
         <ThemeSelector />
@@ -206,6 +383,7 @@ const Dashboard: React.FC = () => {
           <button 
             onClick={() => { setShowCreateModal(true); setNewTitle(''); }}
             className={`group relative h-72 p-6 glass-panel rounded-3xl hover:border-${theme.colors.primary}-500/50 transition-all cursor-pointer flex flex-col items-center justify-center gap-6 bg-${theme.colors.primary}-900/5 hover:bg-${theme.colors.primary}-900/10 border-dashed border-white/20`}
+            style={theme.id === 'nebula_mind' ? { boxShadow: 'var(--nm-shadow)' } : {}}
           >
             <div className={`w-16 h-16 rounded-full bg-gradient-to-br from-${theme.colors.primary}-500 to-${theme.colors.secondary}-600 flex items-center justify-center shadow-2xl shadow-${theme.colors.primary}-500/30 group-hover:scale-110 transition-transform duration-500`}>
                 <Plus size={32} className="text-white" />
@@ -272,7 +450,7 @@ const Dashboard: React.FC = () => {
                         value={newTitle}
                         onChange={(e) => setNewTitle(e.target.value)}
                         placeholder="e.g. Advanced Physics Research"
-                        className={`w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-${theme.colors.primary}-500 focus:ring-1 focus:ring-${theme.colors.primary}-500 transition-all mb-6`}
+                        className={`w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-white focus:outline-none focus:border-${theme.colors.primary}-500 focus:border-${theme.colors.primary}-500 transition-all mb-6`}
                       />
                       <div className="flex justify-end gap-3">
                           <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 hover:bg-white/5 rounded-lg text-slate-300 text-sm font-medium">Cancel</button>
@@ -298,8 +476,6 @@ const NotebookContainer: React.FC = () => {
   const [notebook, setNotebook] = useState<Notebook | undefined>(undefined);
   const navigate = useNavigate();
   const { theme } = useTheme();
-
-  // Use Job Context to update notebook if a background job finishes for this notebook
   const { jobs } = useJobs();
 
   useEffect(() => {
@@ -311,7 +487,7 @@ const NotebookContainer: React.FC = () => {
         navigate('/');
       }
     }
-  }, [id, navigate, jobs]); // Re-fetch if jobs change (completion might trigger update)
+  }, [id, navigate, jobs]);
 
   const handleUpdate = (updated: Notebook) => {
     setNotebook(updated);
@@ -319,7 +495,7 @@ const NotebookContainer: React.FC = () => {
   };
 
   if (!notebook) return (
-      <div className={`min-h-screen ${theme.colors.background} flex flex-col items-center justify-center gap-4`}>
+      <div className={`min-h-screen flex flex-col items-center justify-center gap-4 relative z-10`}>
           <div className={`w-12 h-12 border-4 border-${theme.colors.primary}-500 border-t-transparent rounded-full animate-spin`}></div>
           <span className={`text-${theme.colors.primary}-500 font-medium animate-pulse`}>Loading Nebula...</span>
       </div>
@@ -348,7 +524,6 @@ const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         const jobId = crypto.randomUUID();
         const placeholderId = crypto.randomUUID();
         
-        // 1. Create Placeholder Artifact in Notebook
         const notebook = getNotebookById(notebookId);
         if (notebook) {
             const placeholder: Artifact = {
@@ -371,26 +546,24 @@ const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         };
         setJobs(prev => [...prev, newJob]);
 
-        // 2. Start Async Process
-        // We use a timeout to push this to the event loop so the UI updates immediately
         setTimeout(async () => {
             try {
                 let content;
                 if (type === 'audioOverview') {
-                    // Pass the mode and length from config
-                    content = await generateAudioOverview(sources, config?.length, config?.mode);
+                    content = await generateAudioOverview(sources, config?.length, config?.mode, config?.voices, (status) => {
+                        // Could update job progress here in real app
+                    });
                 } else {
                     content = await generateArtifact(type, sources);
                 }
 
-                // Update Notebook with Real Artifact
                 const nb = getNotebookById(notebookId);
                 if (nb) {
                     const idx = nb.artifacts.findIndex(a => a.id === placeholderId);
                     if (idx !== -1) {
                         nb.artifacts[idx] = {
                             ...nb.artifacts[idx],
-                            title: `${type === 'audioOverview' ? 'Podcast' : type} - ${new Date().toLocaleTimeString()}`,
+                            title: `${type === 'audioOverview' ? content.title || 'Podcast' : type} - ${new Date().toLocaleTimeString()}`,
                             content,
                             status: 'completed'
                         };
@@ -403,7 +576,6 @@ const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
             } catch (error) {
                 console.error(error);
-                // Update placeholder to failed
                  const nb = getNotebookById(notebookId);
                  if (nb) {
                      const idx = nb.artifacts.findIndex(a => a.id === placeholderId);
@@ -421,7 +593,6 @@ const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return (
         <JobContext.Provider value={{ startJob, jobs, notifications, dismissNotification }}>
             {children}
-            {/* Notification Toast Container */}
             <div className="fixed bottom-4 right-4 z-[9999] flex flex-col gap-2">
                 {notifications.map(n => (
                     <div key={n.id} className={`glass-panel p-4 rounded-xl border-l-4 shadow-2xl flex items-start gap-3 w-80 animate-in slide-in-from-right-full duration-300 ${n.type === 'success' ? 'border-green-500' : n.type === 'error' ? 'border-red-500' : 'border-blue-500'}`}>
@@ -443,17 +614,19 @@ const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const App: React.FC = () => {
   const [showSplash, setShowSplash] = useState(true);
   const [activeThemeId, setActiveThemeId] = useState<ThemeId>('neon');
+  const [animationsEnabled, setAnimationsEnabled] = useState(true);
 
   if (showSplash) {
       return (
-        <ThemeContext.Provider value={{ theme: THEMES[activeThemeId], setThemeId: setActiveThemeId }}>
+        <ThemeContext.Provider value={{ theme: THEMES[activeThemeId], setThemeId: setActiveThemeId, animationsEnabled, setAnimationsEnabled }}>
             <SplashScreen onComplete={() => setShowSplash(false)} />
         </ThemeContext.Provider>
       );
   }
 
   return (
-    <ThemeContext.Provider value={{ theme: THEMES[activeThemeId], setThemeId: setActiveThemeId }}>
+    <ThemeContext.Provider value={{ theme: THEMES[activeThemeId], setThemeId: setActiveThemeId, animationsEnabled, setAnimationsEnabled }}>
+      <GlobalBackground />
       <JobProvider>
         <HashRouter>
             <Routes>
