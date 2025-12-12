@@ -1,5 +1,4 @@
 
-
 import React, { useState, useRef } from 'react';
     import { Source } from '../types';
     import { fetchWebsiteContent, processFileWithGemini } from '../services/ai';
@@ -12,6 +11,61 @@ import React, { useState, useRef } from 'react';
       onAddSource: (s: Source) => void;
       onDeleteSource: (id: string) => void;
     }
+
+    const SourceCard: React.FC<{ source: Source, onDeleteSource: (id: string) => void }> = ({ source, onDeleteSource }) => {
+        const { theme } = useTheme();
+        let Icon = FileText;
+        let colorClass = "text-slate-400";
+        let bgClass = "bg-slate-900";
+        
+        if (source.type === 'website') { Icon = Globe; colorClass = "text-blue-400"; bgClass = "group-hover:bg-blue-500/10"; }
+        if (source.type === 'youtube') { Icon = Youtube; colorClass = "text-red-400"; bgClass = "group-hover:bg-red-500/10"; }
+        if (source.type === 'copiedText') { Icon = Type; colorClass = "text-pink-400"; bgClass = "group-hover:bg-pink-500/10"; }
+        if (source.type === 'audio') { Icon = FileAudio; colorClass = "text-purple-400"; bgClass = "group-hover:bg-purple-500/10"; }
+        if (source.type === 'image') { Icon = Image; colorClass = "text-green-400"; bgClass = "group-hover:bg-green-500/10"; }
+    
+        return (
+          <div className={`relative overflow-hidden glass-panel p-5 rounded-2xl border border-white/5 hover:border-${theme.colors.primary}-500/30 transition-all duration-300 group`}>
+             <div className={`absolute inset-0 bg-gradient-to-r from-${theme.colors.primary}-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none`}></div>
+
+             <div className="relative z-10 flex items-start gap-4">
+                <div className={`w-12 h-12 rounded-xl bg-slate-900 flex items-center justify-center border border-white/10 group-hover:border-${theme.colors.primary}-500/50 group-hover:shadow-[0_0_15px_rgba(var(--color-${theme.colors.primary}),0.15)] transition-all ${bgClass} shrink-0`}>
+                    <Icon size={24} className={colorClass} />
+                </div>
+                
+                <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start">
+                         <div className="min-w-0">
+                             <h3 className={`font-semibold text-slate-200 truncate pr-2 text-base group-hover:text-${theme.colors.primary}-300 transition-colors`}>
+                                 {source.title}
+                             </h3>
+                             <div className="flex items-center gap-2 mt-1">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 border border-slate-800 rounded px-1.5 py-0.5">
+                                    {source.type}
+                                </span>
+                                <span className="text-xs text-slate-500 truncate max-w-[120px]">
+                                    {source.type === 'copiedText' ? 'Pasted Content' : source.metadata?.originalUrl || source.metadata?.filename || 'File Upload'}
+                                </span>
+                             </div>
+                         </div>
+                         <button 
+                            onClick={() => onDeleteSource(source.id)}
+                            className="text-slate-600 hover:text-rose-500 p-1.5 hover:bg-rose-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                            title="Delete Source"
+                        >
+                            <Trash2 size={16} />
+                        </button>
+                    </div>
+                    
+                    <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between text-xs text-slate-500">
+                        <span className="font-mono">{source.content.length.toLocaleString()} chars</span>
+                        <span>{new Date(source.createdAt).toLocaleDateString()}</span>
+                    </div>
+                </div>
+             </div>
+          </div>
+        );
+      };
     
     const SourcesTab: React.FC<Props> = ({ sources, onAddSource, onDeleteSource }) => {
       // Modal State
@@ -111,60 +165,6 @@ import React, { useState, useRef } from 'react';
               setSelectedFile(e.target.files[0]);
               if (!titleValue) setTitleValue(e.target.files[0].name);
           }
-      };
-    
-      const SourceCard: React.FC<{ source: Source }> = ({ source }) => {
-        let Icon = FileText;
-        let colorClass = "text-slate-400";
-        let bgClass = "bg-slate-900";
-        
-        if (source.type === 'website') { Icon = Globe; colorClass = "text-blue-400"; bgClass = "group-hover:bg-blue-500/10"; }
-        if (source.type === 'youtube') { Icon = Youtube; colorClass = "text-red-400"; bgClass = "group-hover:bg-red-500/10"; }
-        if (source.type === 'copiedText') { Icon = Type; colorClass = "text-pink-400"; bgClass = "group-hover:bg-pink-500/10"; }
-        if (source.type === 'audio') { Icon = FileAudio; colorClass = "text-purple-400"; bgClass = "group-hover:bg-purple-500/10"; }
-        if (source.type === 'image') { Icon = Image; colorClass = "text-green-400"; bgClass = "group-hover:bg-green-500/10"; }
-    
-        return (
-          <div className={`relative overflow-hidden glass-panel p-5 rounded-2xl border border-white/5 hover:border-${theme.colors.primary}-500/30 transition-all duration-300 group`}>
-             <div className={`absolute inset-0 bg-gradient-to-r from-${theme.colors.primary}-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none`}></div>
-
-             <div className="relative z-10 flex items-start gap-4">
-                <div className={`w-12 h-12 rounded-xl bg-slate-900 flex items-center justify-center border border-white/10 group-hover:border-${theme.colors.primary}-500/50 group-hover:shadow-[0_0_15px_rgba(var(--color-${theme.colors.primary}),0.15)] transition-all ${bgClass} shrink-0`}>
-                    <Icon size={24} className={colorClass} />
-                </div>
-                
-                <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-start">
-                         <div className="min-w-0">
-                             <h3 className={`font-semibold text-slate-200 truncate pr-2 text-base group-hover:text-${theme.colors.primary}-300 transition-colors`}>
-                                 {source.title}
-                             </h3>
-                             <div className="flex items-center gap-2 mt-1">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 border border-slate-800 rounded px-1.5 py-0.5">
-                                    {source.type}
-                                </span>
-                                <span className="text-xs text-slate-500 truncate max-w-[120px]">
-                                    {source.type === 'copiedText' ? 'Pasted Content' : source.metadata?.originalUrl || source.metadata?.filename || 'File Upload'}
-                                </span>
-                             </div>
-                         </div>
-                         <button 
-                            onClick={() => onDeleteSource(source.id)}
-                            className="text-slate-600 hover:text-rose-500 p-1.5 hover:bg-rose-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                            title="Delete Source"
-                        >
-                            <Trash2 size={16} />
-                        </button>
-                    </div>
-                    
-                    <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between text-xs text-slate-500">
-                        <span className="font-mono">{source.content.length.toLocaleString()} chars</span>
-                        <span>{new Date(source.createdAt).toLocaleDateString()}</span>
-                    </div>
-                </div>
-             </div>
-          </div>
-        );
       };
     
       return (
@@ -268,7 +268,7 @@ import React, { useState, useRef } from 'react';
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {sources.map(s => <SourceCard key={s.id} source={s} />)}
+                    {sources.map(s => <SourceCard key={s.id} source={s} onDeleteSource={onDeleteSource} />)}
                 </div>
             )}
           </div>

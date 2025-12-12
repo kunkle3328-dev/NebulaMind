@@ -550,9 +550,16 @@ const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             try {
                 let content;
                 if (type === 'audioOverview') {
-                    content = await generateAudioOverview(sources, config?.length, config?.mode, config?.voices, (status) => {
-                        // Could update job progress here in real app
-                    });
+                    // Pass the config params (length, style, voices) to the service
+                    content = await generateAudioOverview(
+                        sources, 
+                        config?.length, 
+                        config?.style, 
+                        config?.voices, 
+                        (status) => {
+                            // Could update job progress here in real app
+                        }
+                    );
                 } else {
                     content = await generateArtifact(type, sources);
                 }

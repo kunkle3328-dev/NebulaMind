@@ -12,16 +12,27 @@ Keep answers concise and professional.`;
 // --- VOICE CONFIGURATION ---
 export const VOICES = {
   joe: [
-    { id: 'Orus', name: 'Orus (Deep, Narrative)', gender: 'Male' },
     { id: 'Puck', name: 'Puck (Witty, Clear)', gender: 'Male' },
-    { id: 'Fenrir', name: 'Fenrir (Authoritative)', gender: 'Male' }
+    { id: 'Fenrir', name: 'Fenrir (Deep, Authoritative)', gender: 'Male' },
+    { id: 'Charon', name: 'Charon (Raspy, Storyteller)', gender: 'Male' },
+    { id: 'Orus', name: 'Orus (Confident, Narrator)', gender: 'Male' }
   ],
   jane: [
-    { id: 'Zephyr', name: 'Zephyr (Calm, Insightful)', gender: 'Female' },
     { id: 'Aoede', name: 'Aoede (Expressive, Warm)', gender: 'Female' },
-    { id: 'Kore', name: 'Kore (Energetic)', gender: 'Female' }
+    { id: 'Zephyr', name: 'Zephyr (Calm, Insightful)', gender: 'Female' },
+    { id: 'Kore', name: 'Kore (Energetic, Bright)', gender: 'Female' },
+    { id: 'Leda', name: 'Leda (Soft, Sophisticated)', gender: 'Female' }
   ]
 };
+
+// --- PODCAST STYLES ---
+export const PODCAST_STYLES = [
+  { id: 'Deep Dive', label: 'Deep Dive', desc: 'Analytical, structured, "aha" moments', icon: 'Mic' },
+  { id: 'Heated Debate', label: 'Heated Debate', desc: 'Skeptical vs Optimist, intense', icon: 'Flame' },
+  { id: 'Casual Chat', label: 'Casual Chat', desc: 'Relaxed, slang, coffee shop vibe', icon: 'Coffee' },
+  { id: 'News Brief', label: 'News Brief', desc: 'Fast-paced, formal reporting', icon: 'Newspaper' },
+  { id: 'Study Guide', label: 'Study Guide', desc: 'Educational, exam-prep focus', icon: 'GraduationCap' },
+];
 
 // --- THEMING SYSTEM ---
 

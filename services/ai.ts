@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Notebook, Source } from "../types";
 import { RAG_SYSTEM_INSTRUCTION } from "../constants";
@@ -9,6 +10,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
 const MODEL_TEXT = 'gemini-2.5-flash'; // Fast, good for RAG & Ingestion
 const MODEL_REASONING = 'gemini-2.5-flash'; // General purpose
+const MODEL_SCRIPT = 'gemini-3-pro-preview'; // Powerful model for creative writing & teaching
 const MODEL_LIVE = 'gemini-2.5-flash-native-audio-preview-09-2025';
 const MODEL_TTS = 'gemini-2.5-flash-preview-tts';
 const MODEL_IMAGE = 'gemini-2.5-flash-image';
@@ -223,7 +225,16 @@ export const generateAnswer = async (
       model: MODEL_TEXT,
       contents: prompt,
       config: {
-        systemInstruction: "You are a helpful research assistant. You ground your answers in provided sources, but you are also allowed to use Google Search to answer broad questions or find missing information.",
+        systemInstruction: `You are Nebula, a witty, highly intelligent, and conversational research assistant. 
+        
+        Personality:
+        - You are NOT a robotic responder. You are a curious research partner.
+        - Use phrases like "Here's what I found...", "Interestingly...", "It seems like...".
+        - If the user asks something simple, give a direct, friendly answer.
+        - If the user asks something complex, break it down step-by-step but keep the tone engaging.
+        - Feel free to use light metaphors to explain difficult concepts.
+        
+        Rule: Ground your answers in provided sources, but you are also allowed to use Google Search to answer broad questions or find missing information.`,
         tools: [{ googleSearch: {} }]
       }
     });
@@ -482,8 +493,8 @@ export const generateArtifact = async (
 export const generateAudioOverview = async (
     sources: Source[], 
     length: 'Short' | 'Medium' | 'Long' = 'Medium',
-    mode: 'Standard' | 'Learn' = 'Standard',
-    voices: { joe: string; jane: string } = { joe: 'Orus', jane: 'Zephyr' },
+    style: 'Deep Dive' | 'Heated Debate' | 'Casual Chat' | 'News Brief' | 'Study Guide' = 'Deep Dive',
+    voices: { joe: string; jane: string } = { joe: 'Puck', jane: 'Aoede' },
     onProgress?: (status: string) => void
 ) => {
     const context = formatContext(sources);
@@ -493,89 +504,118 @@ export const generateAudioOverview = async (
     if (length === 'Short') durationInstruction = "about 3-5 minutes long, concise but covering key points";
     if (length === 'Long') durationInstruction = "about 12-15 minutes long, very deep dive, extensive discussion";
 
+    // --- STYLE DEFINITIONS ---
+    let personaInstruction = "";
+    
+    if (style === 'Deep Dive') {
+        personaInstruction = `
+        STYLE: "Deep Dive" (Think "Radiolab" or "Hard Fork").
+        HOSTS:
+        - JOE (Host A): The Anchor. Structured, uses first-principles thinking. 
+        - JANE (Host B): The Expert. Metaphorical, connects the dots, provides "aha!" moments.
+        TONE: Intellectual, curious, polished, "studio quality". 
+        DYNAMICS:
+        - Use "wait, hold on" to clarify complex points.
+        - Use "exactly!" or "precisely" to validate.
+        - Focus on the *implications* of the data, not just the data itself.
+        `;
+    } else if (style === 'Heated Debate') {
+        personaInstruction = `
+        STYLE: "Heated Debate" (Think "Crossfire" or "The Argument").
+        HOSTS:
+        - JOE (Host A): The Skeptic. Doubts the material, questions the validity, plays devil's advocate.
+        - JANE (Host B): The Optimist/Believer. Defends the source material passionately.
+        TONE: Intense, fast-paced, high energy.
+        DYNAMICS:
+        - Interruptions are encouraged (e.g., "Let me stop you there", "I completely disagree").
+        - Use rhetorical questions.
+        - End with a "agree to disagree" or a tentative compromise.
+        `;
+    } else if (style === 'Casual Chat') {
+        personaInstruction = `
+        STYLE: "Casual Chat" (Think "Morning Zoo" or "Coffee Shop").
+        HOSTS:
+        - JOE (Host A): Laid back, maybe cracks a joke.
+        - JANE (Host B): Enthusiastic, uses slang (tastefully).
+        TONE: Relaxed, fun, unscripted vibe.
+        DYNAMICS:
+        - Use fillers like "you know?", "like", "totally" (sparingly but effectively).
+        - Laugh at concepts that are weird.
+        - Relate the topic to everyday life (pizza, traffic, movies).
+        `;
+    } else if (style === 'News Brief') {
+        personaInstruction = `
+        STYLE: "News Brief" (Think "NPR" or "BBC World Service").
+        HOSTS:
+        - JOE (Host A): Lead Anchor. Formal, serious, authoritative.
+        - JANE (Host B): Field Reporter. Fast-paced, informational.
+        TONE: Professional, objective, crisp.
+        DYNAMICS:
+        - Short sentences.
+        - "Breaking news", "Just in", "According to the report".
+        - No tangents. Just facts.
+        `;
+    } else if (style === 'Study Guide') {
+        personaInstruction = `
+        STYLE: "Study Guide" (Think "Khan Academy" meets Podcast).
+        HOSTS:
+        - JOE (Host A): The Student. Asks the questions the listener is thinking.
+        - JANE (Host B): The Tutor. Explains clearly, uses analogies, repeats key definitions.
+        TONE: Encouraging, educational, slow-paced.
+        DYNAMICS:
+        - "So, if I understand correctly...", "Let's recap".
+        - Quiz the listener: "Pause and think about X".
+        - Focus on memorization and understanding core concepts.
+        `;
+    }
+
     try {
         // 1. Generate the script text first
-        if (onProgress) onProgress("Planning podcast episode and writing script...");
+        if (onProgress) onProgress(`Writing ${style} script...`);
 
-        let scriptPrompt = "";
+        const systemInstruction = `You are the primary reasoning model (Gemini Pro 3) for a two-host AI podcast studio.
 
-        if (mode === 'Learn') {
-             scriptPrompt = `
-                Create an educational "Study Guide" podcast script between two hosts (Joe and Jane) teaching the user about the provided material.
-                
-                GOAL: Teach the listener the core concepts from the source material effectively.
-                
-                ROLES:
-                - Jane (Female): The Lead Instructor. Warm, structured, authoritative but kind. She checks for understanding.
-                - Joe (Male): The Curious Student. Relatable, asks "stupid" questions that clarify things for everyone. He uses simple analogies.
-                
-                STRUCTURE:
-                1. Intro: State the topic and specific learning goals for this session.
-                2. Core Concepts: Break down the material into 5-8 key lessons or sections.
-                3. Interaction: Frequent back-and-forth. Joe should ask "Wait, can you explain that simply?" or "So, it's like [analogy]?", and Jane confirms or corrects.
-                4. Deep Dive: Pick the most complex topic and spend extra time on it.
-                5. Recap: Summarize the key takeaways at the end to reinforce learning.
-                
-                PACING & TONE:
-                - Speak at a moderate, clear pace (1.0x speed).
-                - Use natural pauses [pause] and reactions [laughs] [hmm].
-                - Make it sound like a real tutoring session, not a lecture.
-                
-                Length: ${durationInstruction}.
-                
-                IMPORTANT FORMATTING:
-                Start the response strictly with:
-                TITLE: [Creative Podcast Episode Title]
-                TOPIC: [Short Topic Summary for Cover Art]
-                SCRIPT_START
+Core responsibilities:
+1. Understand the user’s source material.
+2. Plan a structured, listener-friendly episode based on the selected STYLE.
+3. Return a polished script ready for TTS.
 
-                Then the dialogue where Joe and Jane take turns. 
-                YOU MUST USE THE NAMES "Joe" AND "Jane" FOR THE SPEAKERS.
-                Example:
-                Joe: [text]
-                Jane: [text]
-                
-                MATERIAL:
-                ${context}
-             `;
-        } else {
-            // Standard "Deep Dive" Podcast Mode
-            scriptPrompt = `
-            Create a highly engaging, human-like podcast script between two hosts (Joe and Jane) discussing the provided material.
-            
-            HOST PERSONALITIES:
-            - **Joe (Male)**: The "Everyman". He's skeptical, curious, and witty. He loves using slang or pop culture references to ground complex topics. He interrupts politely when he's confused.
-            - **Jane (Female)**: The "Expert". She is passionate, articulate, and empathetic. She loves explaining the details but keeps it accessible. She laughs at Joe's jokes.
-            
-            INSTRUCTIONS:
-            - **Sound REAL**: This is a conversation, not a reading. Use contractions ("can't", "it's"), filler words ("like", "you know") sparingly but naturally.
-            - **Reactions**: Include emotional cues in brackets: [laughs], [sighs], [excitedly], [thoughtful pause].
-            - **Pacing**: Write for a moderate 1.0x speaking speed. Do not rush. Allow ideas to breathe.
-            - **Structure**: Hook the listener immediately. Debate a point. Use an analogy. Summarize at the end.
-            
-            Length: ${durationInstruction}.
-            
-            IMPORTANT FORMATTING:
-            Start the response strictly with:
-            TITLE: [Creative Podcast Episode Title]
-            TOPIC: [Short Topic Summary for Cover Art]
-            SCRIPT_START
+${personaInstruction}
 
-            Then the dialogue where Joe and Jane take turns. 
-            YOU MUST USE THE NAMES "Joe" AND "Jane" FOR THE SPEAKERS.
-            Example:
-            Joe: [text]
-            Jane: [text]
-            
-            MATERIAL:
-            ${context}
-            `;
-        }
+Structure:
+1. **The Intro**: Set the stage immediately. Welcome the listener to the ${style} podcast. Explicitly say "Welcome back to..." or "Hello everyone...". Introduce the topic clearly.
+2. **The Meat**: Analyze/Discuss/Debate the source content.
+3. **The Outro**: A solid conclusion or sign-off.
+
+Constraints:
+- All dialogue must be easily TTS-friendly.
+- Avoid heavy markup.
+- Clear separation between speakers (Joe: and Jane:).
+- NO parentheticals like (laughs) or (music fades) unless absolutely necessary for context, but keep it minimal as the TTS reads everything.
+
+Default Output Format:
+TITLE: [Episode Title]
+TOPIC: [Topic Summary]
+SCRIPT_START
+Joe: [Line]
+Jane: [Line]
+...`;
+
+        const userPrompt = `
+        Create a ${style} podcast script about the provided source material.
+        Length: ${durationInstruction}.
+        
+        IMPORTANT: Ensure Joe (Host A) starts by warmly welcoming the listener to the show.
+        
+        SOURCE MATERIAL:
+        ${context}
+        `;
         
         const scriptResponse = await ai.models.generateContent({
-            model: MODEL_TEXT,
-            contents: scriptPrompt,
+            model: MODEL_SCRIPT,
+            contents: userPrompt,
             config: {
+                systemInstruction: systemInstruction,
                 maxOutputTokens: 8192,
             }
         });
@@ -583,7 +623,7 @@ export const generateAudioOverview = async (
         const fullText = scriptResponse.text || "";
         
         // Parse the special fields
-        let podcastTitle = "Deep Dive Podcast";
+        let podcastTitle = `${style} Podcast`;
         let podcastTopic = "Research Overview";
         let scriptText = fullText;
 
@@ -614,7 +654,7 @@ export const generateAudioOverview = async (
                 Subtitle/Topic: "${podcastTopic}".
                 Visual Style: High-end 3D abstract digital art, photorealistic texture, dramatic studio lighting, 8k resolution.
                 Subject: Artistic representation of ${podcastTopic}.
-                Vibe: Intelligent, engaging, premium, "Deep Dive".
+                Vibe: ${style} atmosphere.
                 Colors: Rich gradients, neon accents, dark sleek background.
              `;
              
@@ -642,7 +682,6 @@ export const generateAudioOverview = async (
 
         const generateAudioPromise = async () => {
              // Clean script text to remove any markdown that might confuse TTS or excessive length
-             // Increase limit slightly to accommodate longer scripts, but stay within reason
              const safeScript = scriptText.substring(0, 40000); 
 
              const ttsResponse = await ai.models.generateContent({

@@ -18,27 +18,30 @@
       .font-mono {
         font-family: 'JetBrains Mono', monospace;
       }
-      /* Custom scrollbar */
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: rgba(15, 23, 42, 0.5);
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #334155;
-        border-radius: 4px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #475569;
-      }
       
       .glass-panel {
         background: rgba(15, 23, 42, 0.6);
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
         border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      /* Custom scrollbar ONLY for desktop to ensure native auto-hide behavior on mobile */
+      @media (min-width: 768px) {
+        ::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+          background: rgba(15, 23, 42, 0.5);
+        }
+        ::-webkit-scrollbar-thumb {
+          background: #334155;
+          border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+          background: #475569;
+        }
       }
     </style>
   <script type="importmap">

@@ -1,15 +1,1029 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Notebook, Artifact } from '../types';
-import { Mic, Headphones, FileText, HelpCircle, Layout, Presentation, Play, Pause, Loader2, X, Download, Wand2, Activity, Sparkles, ChevronRight, ChevronLeft, Maximize2, Minimize2, Monitor, AlertCircle, Share2, FileCode, GraduationCap, BookOpen, Volume2, ImageIcon, RotateCcw, Shuffle, Network } from 'lucide-react';
+import { Mic, Headphones, FileText, HelpCircle, Layout, Presentation, Play, Pause, Loader2, X, Download, Wand2, Activity, Sparkles, ChevronRight, ChevronLeft, Maximize2, Minimize2, Monitor, AlertCircle, Share2, FileCode, GraduationCap, BookOpen, Volume2, ImageIcon, RotateCcw, Shuffle, Network, Check, Flame, Newspaper, Coffee, Users, AlignLeft } from 'lucide-react';
 import LiveSession from './LiveSession';
 import { useTheme, useJobs } from '../App';
-import { VOICES } from '../constants';
+import { VOICES, PODCAST_STYLES } from '../constants';
 
 interface Props {
   notebook: Notebook;
   onUpdate: (nb: Notebook) => void;
 }
+
+// --- SUB-COMPONENTS ---
+
+const AudioPlayerVisualizer = ({ audioUrl, coverUrl, onJoinLive, title, topic, script }: { audioUrl: string; coverUrl?: string; onJoinLive?: () => void; title?: string; topic?: string; script?: string }) => {
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const audioCtxRef = useRef<AudioContext | null>(null);
+    const analyserRef = useRef<AnalyserNode | null>(null);
+    
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [duration, setDuration] = useState(0);
+    const [currentTime, setCurrentTime] = useState(0);
+    const [showTranscript, setShowTranscript] = useState(false);
+    const { theme } = useTheme();
+
+    // Responsive Sizing State
+    const [dims, setDims] = useState({ canvasSize: 360, artSize: 192 }); // Default Desktop
+
+    useEffect(() => {
+        const handleResize = () => {
+            const isMobile = window.innerWidth < 768;
+            setDims({
+                canvasSize: isMobile ? 280 : 380, // Canvas width/height
+                artSize: isMobile ? 144 : 192,   // w-36 (144px) vs w-48 (192px)
+            });
+        };
+        handleResize(); // Init
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (audio) {
+            audio.src = audioUrl;
+            audio.onloadedmetadata = () => setDuration(audio.duration);
+            audio.ontimeupdate = () => setCurrentTime(audio.currentTime);
+            audio.onended = () => setIsPlaying(false);
+        }
+        return () => {
+            if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
+                audioCtxRef.current.close();
+            }
+        };
+    }, [audioUrl]);
+
+    const togglePlay = async () => {
+        if (!audioRef.current) return;
+
+        if (!audioCtxRef.current) {
+            const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+            const ctx = new AudioCtx();
+            audioCtxRef.current = ctx;
+            
+            const analyser = ctx.createAnalyser();
+            analyser.fftSize = 512;
+            analyser.smoothingTimeConstant = 0.8;
+            analyserRef.current = analyser;
+
+            const source = ctx.createMediaElementSource(audioRef.current);
+            source.connect(analyser);
+            analyser.connect(ctx.destination);
+        }
+
+        if (audioCtxRef.current?.state === 'suspended') {
+            await audioCtxRef.current.resume();
+        }
+
+        if (isPlaying) {
+            audioRef.current.pause();
+        } else {
+            audioRef.current.play();
+        }
+        setIsPlaying(!isPlaying);
+    };
+
+    // Visualizer Colors
+    let primaryColorHex = '#22d3ee'; // Default Cyan
+    let secondaryColorHex = '#3b82f6'; // Default Blue
+
+    if (theme.id === 'obsidian') { primaryColorHex = '#f59e0b'; secondaryColorHex = '#ea580c'; }
+    if (theme.id === 'arctic') { primaryColorHex = '#38bdf8'; secondaryColorHex = '#818cf8'; }
+    if (theme.id === 'quantum') { primaryColorHex = '#8b5cf6'; secondaryColorHex = '#d946ef'; }
+    if (theme.id === 'gilded') { primaryColorHex = '#10b981'; secondaryColorHex = '#fbbf24'; }
+    if (theme.id === 'crimson') { primaryColorHex = '#ef4444'; secondaryColorHex = '#f43f5e'; }
+    if (theme.id === 'cyberpunk') { primaryColorHex = '#d946ef'; secondaryColorHex = '#06b6d4'; } // Fuchsia & Cyan
+    if (theme.id === 'lux') { primaryColorHex = '#d946ef'; secondaryColorHex = '#fbbf24'; } // Violet & Gold
+
+    useEffect(() => {
+        let animationId: number;
+        let rotation = 0;
+
+        const render = () => {
+            const canvas = canvasRef.current;
+            const analyser = analyserRef.current;
+            
+            if (!canvas || !analyser) {
+                animationId = requestAnimationFrame(render);
+                return;
+            }
+            
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteFrequencyData(dataArray);
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            
+            // Calculate radius to start EXACTLY at the edge of the art
+            // Dims.artSize is diameter, so radius is / 2. Add a small buffer (8px).
+            const baseRadius = (dims.artSize / 2) + 12; 
+            
+            const bars = 90;
+            const step = (Math.PI * 2) / bars;
+
+            rotation += 0.002; // Slow rotation
+
+            for (let i = 0; i < bars; i++) {
+                const dataIndex = Math.floor((i / bars) * (bufferLength * 0.7));
+                const value = dataArray[dataIndex] || 0;
+                // Scale value for bar length
+                const barLen = (value / 255) * (dims.canvasSize * 0.15); // Dynamic length based on canvas size
+                
+                const angle = i * step + rotation;
+                
+                // Start point (on edge of album art)
+                const x1 = centerX + Math.cos(angle) * baseRadius;
+                const y1 = centerY + Math.sin(angle) * baseRadius;
+                
+                // End point
+                const x2 = centerX + Math.cos(angle) * (baseRadius + barLen);
+                const y2 = centerY + Math.sin(angle) * (baseRadius + barLen);
+
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                
+                // Color based on theme
+                const gradient = ctx.createLinearGradient(x1, y1, x2, y2);
+                gradient.addColorStop(0, primaryColorHex);
+                gradient.addColorStop(1, secondaryColorHex);
+                
+                ctx.strokeStyle = gradient;
+                ctx.lineWidth = 3;
+                ctx.lineCap = 'round';
+                ctx.stroke();
+            }
+
+            // Outer glow ring (only when playing)
+            if (isPlaying) {
+                const avg = dataArray.reduce((a, b) => a + b) / bufferLength;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, baseRadius + 4, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(255, 255, 255, ${Math.min(0.2, avg/500)})`;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+
+            animationId = requestAnimationFrame(render);
+        };
+
+        render();
+        return () => cancelAnimationFrame(animationId);
+    }, [isPlaying, primaryColorHex, secondaryColorHex, dims]);
+
+    const formatTime = (t: number) => {
+        const m = Math.floor(t / 60);
+        const s = Math.floor(t % 60);
+        return `${m}:${s.toString().padStart(2, '0')}`;
+    };
+
+    return (
+        <div className="flex flex-col h-full relative bg-slate-950/50 overflow-x-hidden">
+            {/* Audio Element */}
+            <audio key={audioUrl} ref={audioRef} crossOrigin="anonymous" className="hidden" />
+            
+            {/* Transcript Overlay */}
+            {showTranscript && (
+                <div className="absolute inset-0 z-40 bg-slate-950/95 backdrop-blur-xl flex flex-col animate-in slide-in-from-bottom-10 fade-in duration-300">
+                    <div className="flex items-center justify-between p-4 border-b border-white/10 bg-slate-900/50">
+                        <h3 className="font-bold text-white flex items-center gap-2">
+                            <AlignLeft size={18} className={`text-${theme.colors.primary}-400`} />
+                            Transcript
+                        </h3>
+                        <button onClick={() => setShowTranscript(false)} className="p-2 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors">
+                            <X size={20} />
+                        </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-6 font-mono text-sm leading-relaxed text-slate-300">
+                        {script ? (
+                            script.split('\n').map((line, i) => {
+                                const isHostA = line.startsWith('Joe:') || line.startsWith('JOE:');
+                                const isHostB = line.startsWith('Jane:') || line.startsWith('JANE:');
+                                
+                                return (
+                                    <p key={i} className={`mb-4 ${isHostA ? `text-${theme.colors.primary}-300` : isHostB ? `text-${theme.colors.secondary}-300` : 'text-slate-400'}`}>
+                                        {line}
+                                    </p>
+                                );
+                            })
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-slate-500 opacity-50">
+                                <FileText size={48} className="mb-2" />
+                                <p>Transcript not available for this session.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+            
+            {/* Top Half: Visualizer & Art */}
+            <div className="flex-1 w-full flex flex-col items-center justify-center relative min-h-[280px] p-4 overflow-hidden">
+                 
+                 {/* Background Blur */}
+                 {coverUrl && (
+                     <div className="absolute inset-0 z-0 opacity-20 blur-3xl scale-125 pointer-events-none overflow-hidden">
+                         <img src={coverUrl} className="w-full h-full object-cover" alt="" />
+                     </div>
+                 )}
+
+                 {/* Main Centerpiece */}
+                 <div 
+                      className="relative flex items-center justify-center shrink-0"
+                      style={{ width: dims.canvasSize, height: dims.canvasSize }}
+                 >
+                      {/* Canvas Layer */}
+                      <canvas 
+                          ref={canvasRef} 
+                          width={dims.canvasSize} 
+                          height={dims.canvasSize} 
+                          className="absolute inset-0 z-10 pointer-events-none" 
+                      />
+                      
+                      {/* Album Art Container (Circular) */}
+                      <div 
+                          className={`relative rounded-full overflow-hidden z-20 shadow-2xl border-4 border-slate-900/50 ${isPlaying ? 'animate-spin-slow' : ''}`} 
+                          style={{ width: dims.artSize, height: dims.artSize, animationDuration: '30s' }}
+                      >
+                          {coverUrl ? (
+                              <img src={coverUrl} alt="Cover" className="w-full h-full object-cover" />
+                          ) : (
+                              <div className={`w-full h-full bg-gradient-to-br from-${theme.colors.primary}-900 to-slate-900 flex items-center justify-center`}>
+                                  <Headphones size={48} className={`text-${theme.colors.primary}-400 opacity-50`} />
+                              </div>
+                          )}
+                          {/* Overlay Gradient */}
+                          <div className="absolute inset-0 bg-black/20"></div>
+                      </div>
+
+                      {/* Play Button (Centered on Art) */}
+                      <button 
+                          onClick={togglePlay}
+                          className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-14 h-14 md:w-16 md:h-16 bg-white/10 backdrop-blur-md rounded-full flex items-center justify-center hover:scale-110 transition-transform border border-white/20 shadow-lg group`}
+                      >
+                          {isPlaying ? (
+                              <Pause fill="white" size={24} className="drop-shadow-md" />
+                          ) : (
+                              <Play fill="white" size={24} className="ml-1 drop-shadow-md" />
+                          )}
+                      </button>
+                 </div>
+                 
+                 {/* Title info below art */}
+                 <div className="mt-2 md:mt-4 text-center z-20 px-4 max-w-sm">
+                     <h2 className="text-lg md:text-2xl font-bold text-white leading-tight drop-shadow-lg line-clamp-1">{title || "Audio Overview"}</h2>
+                     <p className="text-xs md:text-sm text-slate-400 mt-1 font-medium">{topic || "Deep Dive Podcast"}</p>
+                 </div>
+            </div>
+
+            {/* Bottom Control Bar */}
+            <div className="w-full p-4 md:p-6 bg-slate-900/80 backdrop-blur-xl border-t border-white/5 z-30 shrink-0">
+                 {/* Progress Bar */}
+                 <div 
+                      className="relative w-full h-1.5 bg-slate-800 rounded-full cursor-pointer group mb-4"
+                      onClick={(e) => {
+                          if(audioRef.current && duration) {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const pos = (e.clientX - rect.left) / rect.width;
+                              audioRef.current.currentTime = pos * duration;
+                          }
+                      }}
+                  >
+                      <div 
+                          className={`absolute top-0 left-0 h-full bg-gradient-to-r from-${theme.colors.primary}-500 to-${theme.colors.secondary}-500 rounded-full`}
+                          style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
+                      />
+                      {/* Thumb */}
+                      <div 
+                          className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity pointer-events-none"
+                          style={{ left: `${duration ? (currentTime / duration) * 100 : 0}%` }}
+                      />
+                 </div>
+
+                 <div className="flex items-center justify-between text-xs text-slate-500 font-mono mb-3">
+                     <span>{formatTime(currentTime)}</span>
+                     <span>{formatTime(duration)}</span>
+                 </div>
+
+                 <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-3">
+                           <button onClick={() => { if (audioRef.current) audioRef.current.currentTime -= 10; }} className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full">
+                              <span className="text-[10px] font-bold">-10s</span>
+                           </button>
+                           <button onClick={() => { if (audioRef.current) audioRef.current.currentTime += 10; }} className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full">
+                              <span className="text-[10px] font-bold">+10s</span>
+                           </button>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                          <button 
+                              onClick={() => setShowTranscript(true)}
+                              className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full text-xs font-bold transition-all border border-white/5 shrink-0"
+                              title="Show Transcript"
+                          >
+                              <AlignLeft size={14} />
+                              <span className="hidden xs:inline">Transcript</span>
+                          </button>
+
+                          {onJoinLive && (
+                              <button 
+                                  onClick={onJoinLive}
+                                  className={`flex items-center gap-2 px-3 py-2 md:px-4 md:py-2 bg-${theme.colors.primary}-600 hover:bg-${theme.colors.primary}-500 text-white rounded-full text-xs font-bold shadow-lg shadow-${theme.colors.primary}-500/20 transition-all border border-white/10 shrink-0`}
+                              >
+                                  <Mic size={14} /> 
+                                  <span className="hidden xs:inline">Join Live</span>
+                                  <span className="xs:hidden">Live</span>
+                              </button>
+                          )}
+                      </div>
+                 </div>
+            </div>
+        </div>
+    );
+};
+
+const FlashcardPlayer = ({ content }: { content: any }) => {
+  const { theme } = useTheme();
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isFlipped, setIsFlipped] = useState(false);
+  const cards = content?.cards || [];
+  
+  // Shuffle logic
+  const [shuffledCards, setShuffledCards] = useState([...cards]);
+  const [isShuffled, setIsShuffled] = useState(false);
+
+  // Reset when content changes
+  useEffect(() => {
+      setShuffledCards([...cards]);
+      setCurrentIndex(0);
+      setIsFlipped(false);
+      setIsShuffled(false);
+  }, [content]);
+
+  const activeCards = isShuffled ? shuffledCards : cards;
+  const currentCard = activeCards[currentIndex];
+
+  const nextCard = (e?: React.MouseEvent) => {
+      e?.stopPropagation();
+      setIsFlipped(false);
+      setTimeout(() => {
+          setCurrentIndex(prev => (prev + 1) % activeCards.length);
+      }, 150);
+  };
+
+  const prevCard = (e?: React.MouseEvent) => {
+      e?.stopPropagation();
+      setIsFlipped(false);
+      setTimeout(() => {
+           setCurrentIndex(prev => (prev - 1 + activeCards.length) % activeCards.length);
+      }, 150);
+  };
+
+  const toggleShuffle = () => {
+      setIsFlipped(false);
+      if (isShuffled) {
+           setIsShuffled(false);
+           setCurrentIndex(0);
+      } else {
+           // Fisher-Yates shuffle
+           const shuffled = [...cards];
+           for (let i = shuffled.length - 1; i > 0; i--) {
+               const j = Math.floor(Math.random() * (i + 1));
+               [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+           }
+           setShuffledCards(shuffled);
+           setIsShuffled(true);
+           setCurrentIndex(0);
+      }
+  };
+
+  if (!currentCard) return <div className="p-8 text-center text-slate-500">No flashcards available.</div>;
+
+  return (
+      <div className="flex flex-col h-full bg-slate-950/50 relative overflow-hidden">
+           {/* Progress Header */}
+           <div className="p-4 flex justify-between items-center text-slate-400 border-b border-white/5">
+               <span className="text-xs font-bold uppercase tracking-widest">{isShuffled ? 'Randomized' : 'Sequential'}</span>
+               <span className="font-mono text-sm">{currentIndex + 1} / {activeCards.length}</span>
+           </div>
+
+           {/* Card Area */}
+           <div className="flex-1 flex items-center justify-center p-4 md:p-12 perspective-1000">
+                <div 
+                  className={`relative w-full max-w-2xl aspect-[4/3] md:aspect-[16/9] cursor-pointer group perspective-1000`}
+                  onClick={() => setIsFlipped(!isFlipped)}
+                >
+                      <div 
+                          className={`w-full h-full relative transition-all duration-500 preserve-3d ${isFlipped ? 'rotate-y-180' : ''}`}
+                          style={{ transformStyle: 'preserve-3d' }}
+                      >
+                          {/* FRONT */}
+                          <div className={`absolute inset-0 backface-hidden bg-gradient-to-br from-slate-900 to-slate-800 border border-white/10 rounded-2xl shadow-2xl flex flex-col items-center justify-center p-8 md:p-16 text-center hover:border-${theme.colors.primary}-500/30 transition-colors`}>
+                              <span className={`text-${theme.colors.primary}-400 text-xs font-bold uppercase tracking-widest mb-4`}>Term</span>
+                              <h2 className="text-2xl md:text-5xl font-bold text-white">{currentCard.term}</h2>
+                              <p className="text-slate-500 text-sm mt-8 absolute bottom-8">Tap to flip</p>
+                          </div>
+
+                          {/* BACK */}
+                          <div 
+                              className={`absolute inset-0 backface-hidden rotate-y-180 bg-gradient-to-br from-${theme.colors.primary}-900/20 to-slate-900 border border-${theme.colors.primary}-500/30 rounded-2xl shadow-2xl flex flex-col items-center justify-center p-8 md:p-16 text-center`}
+                          >
+                              <span className={`text-${theme.colors.secondary}-400 text-xs font-bold uppercase tracking-widest mb-4`}>Definition</span>
+                              <p className="text-lg md:text-2xl font-medium text-slate-200 leading-relaxed max-h-full overflow-y-auto">
+                                  {currentCard.definition}
+                              </p>
+                          </div>
+                      </div>
+                </div>
+           </div>
+
+           {/* Controls */}
+           <div className="p-4 md:p-6 border-t border-white/5 flex items-center justify-center gap-6 bg-slate-900/50 backdrop-blur-md">
+               <button onClick={toggleShuffle} className={`p-3 rounded-full hover:bg-white/5 transition-colors ${isShuffled ? `text-${theme.colors.primary}-400` : 'text-slate-500'}`} title="Shuffle">
+                   <Shuffle size={20} />
+               </button>
+               
+               <div className="flex items-center gap-4">
+                   <button onClick={prevCard} className="p-4 bg-slate-800 hover:bg-slate-700 text-white rounded-full transition-all border border-white/5 hover:border-white/20 active:scale-95">
+                       <ChevronLeft size={24} />
+                   </button>
+                   
+                   <button 
+                      onClick={() => setIsFlipped(!isFlipped)} 
+                      className={`px-8 py-3 bg-${theme.colors.primary}-600/20 hover:bg-${theme.colors.primary}-600/30 text-${theme.colors.primary}-200 border border-${theme.colors.primary}-500/50 rounded-xl font-bold transition-all w-32`}
+                   >
+                       {isFlipped ? 'Show Term' : 'Show Def'}
+                   </button>
+
+                   <button onClick={nextCard} className="p-4 bg-slate-800 hover:bg-slate-700 text-white rounded-full transition-all border border-white/5 hover:border-white/20 active:scale-95">
+                       <ChevronRight size={24} />
+                   </button>
+               </div>
+
+               <button onClick={() => { setCurrentIndex(0); setIsFlipped(false); }} className="p-3 rounded-full hover:bg-white/5 text-slate-500 transition-colors" title="Reset">
+                   <RotateCcw size={20} />
+               </button>
+           </div>
+
+           <style>{`
+              .perspective-1000 { perspective: 1000px; }
+              .preserve-3d { transform-style: preserve-3d; }
+              .backface-hidden { backface-visibility: hidden; }
+              .rotate-y-180 { transform: rotateY(180deg); }
+           `}</style>
+      </div>
+  );
+};
+
+const KnowledgeGraphViewer = ({ content }: { content: any }) => {
+   const canvasRef = useRef<HTMLCanvasElement>(null);
+   const containerRef = useRef<HTMLDivElement>(null);
+   const [selectedNode, setSelectedNode] = useState<any>(null);
+   
+   // Simulation State
+   const nodesRef = useRef<any[]>([]);
+   const edgesRef = useRef<any[]>([]);
+   const isDraggingRef = useRef(false);
+   const dragNodeRef = useRef<any>(null);
+
+   const { theme } = useTheme();
+
+   // Init Simulation
+   useEffect(() => {
+       if (!content) return;
+       
+       const width = containerRef.current?.clientWidth || 800;
+       const height = containerRef.current?.clientHeight || 600;
+
+       // Initialize random positions near center
+       nodesRef.current = content.nodes.map((n: any) => ({
+           ...n,
+           x: width / 2 + (Math.random() - 0.5) * 100,
+           y: height / 2 + (Math.random() - 0.5) * 100,
+           vx: 0,
+           vy: 0,
+           radius: 20 + (n.category === 'Concept' ? 5 : 0) // Larger for key concepts
+       }));
+
+       edgesRef.current = content.edges.map((e: any) => ({
+           ...e,
+           source: nodesRef.current.find(n => n.id === e.source),
+           target: nodesRef.current.find(n => n.id === e.target)
+       })).filter((e: any) => e.source && e.target);
+
+   }, [content]);
+
+   // Physics Loop
+   useEffect(() => {
+       let animationId: number;
+       
+       const updatePhysics = () => {
+           const nodes = nodesRef.current;
+           const edges = edgesRef.current;
+           const width = canvasRef.current?.width || 800;
+           const height = canvasRef.current?.height || 600;
+
+           // Constants
+           const REPULSION = 2000;
+           const SPRING_LENGTH = 150;
+           const SPRING_STRENGTH = 0.05;
+           const DAMPING = 0.9;
+           const CENTER_FORCE = 0.01;
+
+           nodes.forEach(node => {
+               let fx = 0, fy = 0;
+
+               // 1. Repulsion (Nodes push apart)
+               nodes.forEach(other => {
+                   if (node === other) return;
+                   const dx = node.x - other.x;
+                   const dy = node.y - other.y;
+                   const distSq = dx * dx + dy * dy;
+                   if (distSq > 0) {
+                       const force = REPULSION / Math.sqrt(distSq);
+                       fx += (dx / Math.sqrt(distSq)) * force;
+                       fy += (dy / Math.sqrt(distSq)) * force;
+                   }
+               });
+
+               // 2. Attraction (Edges pull together)
+               edges.forEach(edge => {
+                   if (edge.source === node) {
+                       const other = edge.target;
+                       const dx = other.x - node.x;
+                       const dy = other.y - node.y;
+                       const dist = Math.sqrt(dx*dx + dy*dy);
+                       const force = (dist - SPRING_LENGTH) * SPRING_STRENGTH;
+                       fx += (dx/dist) * force;
+                       fy += (dy/dist) * force;
+                   } else if (edge.target === node) {
+                       const other = edge.source;
+                       const dx = other.x - node.x;
+                       const dy = other.y - node.y;
+                       const dist = Math.sqrt(dx*dx + dy*dy);
+                       const force = (dist - SPRING_LENGTH) * SPRING_STRENGTH;
+                       fx += (dx/dist) * force;
+                       fy += (dy/dist) * force;
+                   }
+               });
+
+               // 3. Center Gravity (Keep in view)
+               const cx = width / 2;
+               const cy = height / 2;
+               fx += (cx - node.x) * CENTER_FORCE;
+               fy += (cy - node.y) * CENTER_FORCE;
+
+               // Apply forces
+               if (!isDraggingRef.current || dragNodeRef.current !== node) {
+                   node.vx = (node.vx + fx * 0.05) * DAMPING;
+                   node.vy = (node.vy + fy * 0.05) * DAMPING;
+                   node.x += node.vx;
+                   node.y += node.vy;
+               }
+               
+               // Boundaries
+               node.x = Math.max(20, Math.min(width - 20, node.x));
+               node.y = Math.max(20, Math.min(height - 20, node.y));
+           });
+       };
+
+       const draw = () => {
+           const canvas = canvasRef.current;
+           if (!canvas) return;
+           const ctx = canvas.getContext('2d');
+           if (!ctx) return;
+
+           ctx.clearRect(0, 0, canvas.width, canvas.height);
+           
+           // Draw Edges
+           edgesRef.current.forEach(edge => {
+               ctx.beginPath();
+               ctx.moveTo(edge.source.x, edge.source.y);
+               ctx.lineTo(edge.target.x, edge.target.y);
+               ctx.strokeStyle = `rgba(56, 189, 248, 0.2)`; // Cyan faint
+               ctx.lineWidth = 1;
+               ctx.stroke();
+               
+               // Label
+               const midX = (edge.source.x + edge.target.x) / 2;
+               const midY = (edge.source.y + edge.target.y) / 2;
+               ctx.fillStyle = `rgba(148, 163, 184, 0.8)`;
+               ctx.font = '10px sans-serif';
+               ctx.fillText(edge.relation, midX, midY);
+           });
+
+           // Draw Nodes
+           nodesRef.current.forEach(node => {
+               ctx.beginPath();
+               ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+               
+               // Node Color based on selection or default
+               if (selectedNode?.id === node.id) {
+                   ctx.fillStyle = '#f472b6'; // Pink select
+                   ctx.shadowBlur = 20;
+                   ctx.shadowColor = '#f472b6';
+               } else {
+                   ctx.fillStyle = `rgba(34, 211, 238, 0.8)`; // Cyan default
+                   ctx.shadowBlur = 10;
+                   ctx.shadowColor = `rgba(34, 211, 238, 0.5)`;
+               }
+               ctx.fill();
+               ctx.shadowBlur = 0; // Reset
+
+               // Label
+               ctx.fillStyle = '#fff';
+               ctx.font = 'bold 12px sans-serif';
+               ctx.textAlign = 'center';
+               ctx.fillText(node.label, node.x, node.y + node.radius + 15);
+           });
+
+           updatePhysics();
+           animationId = requestAnimationFrame(draw);
+       };
+
+       draw();
+       return () => cancelAnimationFrame(animationId);
+   }, [content]);
+
+   // Mouse Handlers
+   const handleMouseDown = (e: React.MouseEvent) => {
+       const rect = canvasRef.current!.getBoundingClientRect();
+       const x = e.clientX - rect.left;
+       const y = e.clientY - rect.top;
+       
+       // Find clicked node
+       const clickedNode = nodesRef.current.find(n => {
+           const dist = Math.sqrt((n.x - x)**2 + (n.y - y)**2);
+           return dist < n.radius + 10;
+       });
+
+       if (clickedNode) {
+           isDraggingRef.current = true;
+           dragNodeRef.current = clickedNode;
+           setSelectedNode(clickedNode);
+       } else {
+           setSelectedNode(null);
+       }
+   };
+
+   const handleMouseMove = (e: React.MouseEvent) => {
+       if (isDraggingRef.current && dragNodeRef.current) {
+           const rect = canvasRef.current!.getBoundingClientRect();
+           dragNodeRef.current.x = e.clientX - rect.left;
+           dragNodeRef.current.y = e.clientY - rect.top;
+           dragNodeRef.current.vx = 0;
+           dragNodeRef.current.vy = 0;
+       }
+   };
+
+   const handleMouseUp = () => {
+       isDraggingRef.current = false;
+       dragNodeRef.current = null;
+   };
+
+   // Touch Handlers for Mobile Drag & Drop
+   const handleTouchStart = (e: React.TouchEvent) => {
+       if (e.target === canvasRef.current) e.preventDefault();
+       const rect = canvasRef.current!.getBoundingClientRect();
+       const touch = e.touches[0];
+       const x = touch.clientX - rect.left;
+       const y = touch.clientY - rect.top;
+       
+       // Find clicked node (with slightly larger touch target area)
+       const clickedNode = nodesRef.current.find(n => {
+           const dist = Math.sqrt((n.x - x)**2 + (n.y - y)**2);
+           return dist < n.radius + 20; 
+       });
+
+       if (clickedNode) {
+           isDraggingRef.current = true;
+           dragNodeRef.current = clickedNode;
+           setSelectedNode(clickedNode);
+       }
+   };
+
+   const handleTouchMove = (e: React.TouchEvent) => {
+       if (isDraggingRef.current && dragNodeRef.current) {
+           e.preventDefault(); // Stop scrolling while dragging
+           const rect = canvasRef.current!.getBoundingClientRect();
+           const touch = e.touches[0];
+           dragNodeRef.current.x = touch.clientX - rect.left;
+           dragNodeRef.current.y = touch.clientY - rect.top;
+           dragNodeRef.current.vx = 0;
+           dragNodeRef.current.vy = 0;
+       }
+   };
+
+   const handleTouchEnd = () => {
+       isDraggingRef.current = false;
+       dragNodeRef.current = null;
+   };
+
+   return (
+       <div className="flex h-full" ref={containerRef}>
+           {/* Graph Area */}
+           <div className="flex-1 relative bg-slate-950/50 overflow-hidden cursor-crosshair">
+               <canvas 
+                  ref={canvasRef}
+                  width={containerRef.current?.clientWidth ? containerRef.current.clientWidth - 300 : 800} // Dynamic width minus sidebar
+                  height={containerRef.current?.clientHeight || 600}
+                  onMouseDown={handleMouseDown}
+                  onMouseMove={handleMouseMove}
+                  onMouseUp={handleMouseUp}
+                  onMouseLeave={handleMouseUp}
+                  onTouchStart={handleTouchStart}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
+                  className="block touch-none" // prevent default touch actions like scroll
+               />
+               <div className="absolute top-4 left-4 pointer-events-none">
+                   <p className="text-xs text-slate-500 bg-slate-900/80 px-2 py-1 rounded border border-white/5">
+                      Drag nodes to rearrange • Click to view details
+                   </p>
+               </div>
+           </div>
+           
+           {/* Detail Sidebar */}
+           <div className="w-80 border-l border-white/10 bg-slate-900/80 p-6 flex flex-col backdrop-blur-xl">
+               <h3 className="text-sm font-bold uppercase tracking-widest text-slate-500 mb-6 flex items-center gap-2">
+                   <Network size={16} /> Knowledge Entity
+               </h3>
+               
+               {selectedNode ? (
+                   <div className="animate-in slide-in-from-right-4 fade-in duration-300">
+                       <div className={`w-12 h-12 rounded-full bg-${theme.colors.primary}-500/20 flex items-center justify-center mb-4 border border-${theme.colors.primary}-500/50`}>
+                           <Sparkles className={`text-${theme.colors.primary}-400`} size={24} />
+                       </div>
+                       <h2 className="text-2xl font-bold text-white mb-2">{selectedNode.label}</h2>
+                       <span className="inline-block px-2 py-1 rounded bg-slate-800 text-xs text-slate-400 mb-6 border border-white/5">
+                           {selectedNode.category}
+                       </span>
+                       
+                       <p className="text-slate-300 leading-relaxed text-sm">
+                           {selectedNode.summary}
+                       </p>
+
+                       <div className="mt-8 pt-6 border-t border-white/10">
+                           <h4 className="text-xs font-bold text-slate-500 mb-3">Connections</h4>
+                           <ul className="space-y-2">
+                               {edgesRef.current
+                                  .filter(e => e.source.id === selectedNode.id || e.target.id === selectedNode.id)
+                                  .map((e, i) => (
+                                   <li key={i} className="text-xs text-slate-400 flex items-center gap-2">
+                                       <div className="w-1.5 h-1.5 rounded-full bg-cyan-500"></div>
+                                       <span className="opacity-50">{e.relation}</span>
+                                       <span className="text-slate-200">
+                                           {e.source.id === selectedNode.id ? e.target.label : e.source.label}
+                                       </span>
+                                   </li>
+                               ))}
+                           </ul>
+                       </div>
+                   </div>
+               ) : (
+                   <div className="flex flex-col items-center justify-center h-full text-center text-slate-500 space-y-4">
+                       <div className="w-16 h-16 rounded-full bg-slate-800/50 flex items-center justify-center">
+                           <Monitor size={32} className="opacity-50" />
+                       </div>
+                       <p className="text-sm">Select a node to inspect its neural pathways.</p>
+                   </div>
+               )}
+           </div>
+       </div>
+   );
+};
+
+const SlidePlayer = ({ deck }: { deck: any }) => {
+   const { theme } = useTheme();
+   const [currentSlide, setCurrentSlide] = useState(0);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+
+    const nextSlide = () => setCurrentSlide(prev => Math.min(prev + 1, deck.slides.length - 1));
+    const prevSlide = () => setCurrentSlide(prev => Math.max(prev - 1, 0));
+    
+    const downloadHtml = () => {
+       if (!deck.html) return;
+       const blob = new Blob([deck.html], { type: 'text/html' });
+       const url = URL.createObjectURL(blob);
+       const a = document.createElement('a');
+       a.href = url;
+       a.download = `${deck.deckTitle.replace(/\s+/g, '_')}_Presentation.html`;
+       a.click();
+       URL.revokeObjectURL(url);
+    };
+
+    const slide = deck.slides[currentSlide];
+
+    return (
+        <div className={`flex flex-col h-full ${isFullscreen ? 'fixed inset-0 z-50 bg-black' : 'relative'}`}>
+            <div className="p-4 bg-slate-900 border-b border-white/5 flex flex-wrap justify-between items-center gap-2 shrink-0">
+                <h4 className="font-semibold text-slate-300 flex items-center gap-2 truncate max-w-[200px] md:max-w-none">
+                    <Presentation size={18} className="text-rose-400 shrink-0" />
+                    {deck.deckTitle}
+                </h4>
+                <div className="flex items-center gap-2 ml-auto">
+                     {/* Export HTML Button */}
+                    <button 
+                      onClick={downloadHtml}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition-colors border border-white/5"
+                      title="Download Standalone HTML Presentation"
+                    >
+                        <FileCode size={14} />
+                        <span className="hidden sm:inline">Export HTML</span>
+                    </button>
+                    <button onClick={() => setIsFullscreen(!isFullscreen)} className="p-2 hover:bg-white/5 rounded-lg text-slate-400">
+                        {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+                    </button>
+                </div>
+            </div>
+
+            <div className="flex-1 flex items-center justify-center bg-slate-950 p-4 md:p-8 relative overflow-hidden group">
+                {/* Updated Container: Full height on mobile, Aspect Video on Desktop */}
+                <div className="w-full max-w-5xl h-full md:h-auto md:aspect-video bg-gradient-to-br from-slate-900 to-slate-800 border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden relative">
+                    <div className="flex-1 p-6 md:p-12 flex flex-col justify-center relative z-10 overflow-y-auto">
+                        <h2 className="text-3xl md:text-5xl font-bold text-white mb-6 md:mb-8 leading-tight tracking-tight">
+                            {slide.slideTitle}
+                        </h2>
+                        <div className="space-y-4 md:space-y-4">
+                            {slide.bulletPoints.map((point: string, idx: number) => (
+                                <div key={idx} className="flex items-start gap-3 md:gap-4">
+                                    <div className={`mt-2 w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-${theme.colors.primary}-400 shrink-0`}></div>
+                                    <p className="text-lg md:text-xl text-slate-300 leading-relaxed">{point}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+                 <button onClick={prevSlide} disabled={currentSlide === 0} className={`absolute left-2 md:left-4 p-2 md:p-3 bg-black/50 hover:bg-${theme.colors.primary}-500 rounded-full text-white backdrop-blur-sm transition-all disabled:opacity-0 hover:scale-110 z-20`}>
+                    <ChevronLeft size={24} className="md:w-8 md:h-8" />
+                </button>
+                <button onClick={nextSlide} disabled={currentSlide === deck.slides.length - 1} className={`absolute right-2 md:right-4 p-2 md:p-3 bg-black/50 hover:bg-${theme.colors.primary}-500 rounded-full text-white backdrop-blur-sm transition-all disabled:opacity-0 hover:scale-110 z-20`}>
+                    <ChevronRight size={24} className="md:w-8 md:h-8" />
+                </button>
+            </div>
+        </div>
+    );
+};
+
+const QuizPlayer = ({ quiz }: { quiz: any }) => {
+    const { theme } = useTheme();
+    const [currentQuestion, setCurrentQuestion] = useState(0);
+    const [selectedOption, setSelectedOption] = useState<number | null>(null);
+    const [showResult, setShowResult] = useState(false);
+    const [score, setScore] = useState(0);
+
+    const question = quiz.questions[currentQuestion];
+    const isCorrect = selectedOption === question.correctAnswerIndex;
+
+    const handleOptionClick = (idx: number) => {
+        if (showResult) return;
+        setSelectedOption(idx);
+        setShowResult(true);
+        if (idx === question.correctAnswerIndex) {
+            setScore(s => s + 1);
+        }
+    };
+
+    const nextQuestion = () => {
+        if (currentQuestion < quiz.questions.length - 1) {
+            setCurrentQuestion(prev => prev + 1);
+            setSelectedOption(null);
+            setShowResult(false);
+        }
+    };
+
+    return (
+        <div className="flex flex-col h-full items-center justify-center p-8 bg-slate-950 relative overflow-hidden">
+            <div className="max-w-2xl w-full z-10">
+                <div className="mb-8 flex justify-between items-center text-slate-400 text-sm font-mono">
+                    <span>Question {currentQuestion + 1} of {quiz.questions.length}</span>
+                    <span>Score: {score}</span>
+                </div>
+
+                <h2 className="text-2xl md:text-3xl font-bold text-white mb-8 leading-snug">
+                    {question.question}
+                </h2>
+
+                <div className="space-y-3">
+                    {question.options.map((option: string, idx: number) => {
+                        let btnClass = "bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800";
+                        if (showResult) {
+                            if (idx === question.correctAnswerIndex) btnClass = "bg-green-500/20 border-green-500 text-green-200";
+                            else if (idx === selectedOption) btnClass = "bg-red-500/20 border-red-500 text-red-200";
+                            else btnClass = "bg-slate-900 border-slate-800 text-slate-500 opacity-50";
+                        } else if (selectedOption === idx) {
+                            btnClass = `bg-${theme.colors.primary}-600 border-${theme.colors.primary}-500 text-white`;
+                        }
+
+                        return (
+                            <button
+                                key={idx}
+                                onClick={() => handleOptionClick(idx)}
+                                disabled={showResult}
+                                className={`w-full p-4 rounded-xl border text-left transition-all ${btnClass} flex items-center justify-between group`}
+                            >
+                                <span className="font-medium text-lg">{option}</span>
+                                {showResult && idx === question.correctAnswerIndex && <Check size={20} className="text-green-400" />}
+                                {showResult && idx === selectedOption && idx !== question.correctAnswerIndex && <X size={20} className="text-red-400" />}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                {showResult && (
+                    <div className="mt-6 p-4 bg-slate-800/50 rounded-xl border border-white/5 animate-in fade-in slide-in-from-bottom-2">
+                        <p className={`font-bold mb-1 ${isCorrect ? 'text-green-400' : 'text-rose-400'}`}>
+                            {isCorrect ? 'Correct!' : 'Incorrect'}
+                        </p>
+                        <p className="text-slate-300 text-sm leading-relaxed">{question.explanation}</p>
+                        
+                         <div className="mt-4 flex justify-end">
+                            {currentQuestion < quiz.questions.length - 1 ? (
+                                <button onClick={nextQuestion} className={`px-6 py-2 bg-${theme.colors.primary}-600 hover:bg-${theme.colors.primary}-500 text-white rounded-lg font-bold transition-colors`}>
+                                    Next Question
+                                </button>
+                            ) : (
+                                <div className="text-center w-full py-2 font-bold text-slate-400">Quiz Completed! Final Score: {score}/{quiz.questions.length}</div>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+const ArtifactModal = ({ artifact, onClose, onJoinLive }: { artifact: Artifact; onClose: () => void; onJoinLive: () => void }) => {
+    const { theme } = useTheme();
+
+    if (!artifact) return null;
+
+    const content = (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 bg-black/80 backdrop-blur-md animate-in fade-in duration-200" onClick={onClose}>
+            <div className="w-full max-w-6xl h-[85vh] bg-slate-900 border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col relative" onClick={(e) => e.stopPropagation()}>
+                {/* Header */}
+                <div className="flex items-center justify-between p-4 border-b border-white/5 bg-slate-950/50">
+                     <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                        {artifact.type === 'audioOverview' && <Headphones size={18} className={`text-${theme.colors.primary}-400`} />}
+                        {artifact.type === 'flashcards' && <Layout size={18} className="text-yellow-400" />}
+                        {artifact.type === 'quiz' && <HelpCircle size={18} className="text-purple-400" />}
+                        {artifact.type === 'infographic' && <FileText size={18} className="text-green-400" />}
+                        {artifact.type === 'slideDeck' && <Presentation size={18} className="text-rose-400" />}
+                        {artifact.type === 'knowledgeGraph' && <Network size={18} className="text-cyan-400" />}
+                        {artifact.title}
+                     </h2>
+                     <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors">
+                        <X size={20} />
+                     </button>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-hidden relative bg-slate-950">
+                    {artifact.type === 'audioOverview' && (
+                        <AudioPlayerVisualizer 
+                            audioUrl={artifact.content.audioUrl} 
+                            coverUrl={artifact.content.coverUrl}
+                            title={artifact.content.title} 
+                            topic={artifact.content.topic}
+                            script={artifact.content.script}
+                            onJoinLive={onJoinLive}
+                        />
+                    )}
+                    {artifact.type === 'flashcards' && (
+                        <FlashcardPlayer content={artifact.content} />
+                    )}
+                    {artifact.type === 'knowledgeGraph' && (
+                        <KnowledgeGraphViewer content={artifact.content} />
+                    )}
+                    {artifact.type === 'slideDeck' && (
+                        <SlidePlayer deck={artifact.content} />
+                    )}
+                    {artifact.type === 'infographic' && artifact.content.imageUrl && (
+                        <div className="w-full h-full overflow-auto flex items-center justify-center p-4">
+                            <img src={artifact.content.imageUrl} alt="Infographic" className="max-w-full max-h-none rounded-lg shadow-lg border border-white/10" />
+                        </div>
+                    )}
+                    {artifact.type === 'quiz' && (
+                         <QuizPlayer quiz={artifact.content} />
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+
+    return createPortal(content, document.body);
+};
+
+// --- MAIN COMPONENT ---
 
 const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
   const [liveSessionActive, setLiveSessionActive] = useState(false);
@@ -17,8 +1031,8 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
   
   // AudioConfig State
   const [audioLength, setAudioLength] = useState<'Short' | 'Medium' | 'Long'>('Medium');
-  const [audioMode, setAudioMode] = useState<'Standard' | 'Learn'>('Standard');
-  const [selectedVoices, setSelectedVoices] = useState({ joe: 'Orus', jane: 'Zephyr' });
+  const [audioStyle, setAudioStyle] = useState<string>('Deep Dive');
+  const [selectedVoices, setSelectedVoices] = useState({ joe: 'Puck', jane: 'Aoede' });
   const [showAudioConfig, setShowAudioConfig] = useState(false);
 
   const { theme } = useTheme();
@@ -36,929 +1050,13 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
     }
     
     // Start background job
-    startJob(notebook.id, type, notebook.sources, { length: audioLength, mode: audioMode, voices: selectedVoices });
+    startJob(notebook.id, type, notebook.sources, { length: audioLength, style: audioStyle, voices: selectedVoices });
     setShowAudioConfig(false);
   };
 
   const handleShareArtifact = (artifact: Artifact) => {
       // Simulating share
       alert(`Shared "${artifact.title}" to clipboard!`);
-  };
-
-  const AudioPlayerVisualizer = ({ audioUrl, coverUrl, onJoinLive, title, topic }: { audioUrl: string; coverUrl?: string; onJoinLive?: () => void; title?: string; topic?: string }) => {
-      const audioRef = useRef<HTMLAudioElement | null>(null);
-      const canvasRef = useRef<HTMLCanvasElement | null>(null);
-      const audioCtxRef = useRef<AudioContext | null>(null);
-      const analyserRef = useRef<AnalyserNode | null>(null);
-      
-      const [isPlaying, setIsPlaying] = useState(false);
-      const [duration, setDuration] = useState(0);
-      const [currentTime, setCurrentTime] = useState(0);
-
-      // Responsive Sizing State
-      const [dims, setDims] = useState({ canvasSize: 360, artSize: 192 }); // Default Desktop
-
-      useEffect(() => {
-          const handleResize = () => {
-              const isMobile = window.innerWidth < 768;
-              setDims({
-                  canvasSize: isMobile ? 280 : 380, // Canvas width/height
-                  artSize: isMobile ? 144 : 192,   // w-36 (144px) vs w-48 (192px)
-              });
-          };
-          handleResize(); // Init
-          window.addEventListener('resize', handleResize);
-          return () => window.removeEventListener('resize', handleResize);
-      }, []);
-
-      useEffect(() => {
-          const audio = audioRef.current;
-          if (audio) {
-              audio.src = audioUrl;
-              audio.onloadedmetadata = () => setDuration(audio.duration);
-              audio.ontimeupdate = () => setCurrentTime(audio.currentTime);
-              audio.onended = () => setIsPlaying(false);
-          }
-          return () => {
-              if (audioCtxRef.current && audioCtxRef.current.state !== 'closed') {
-                  audioCtxRef.current.close();
-              }
-          };
-      }, [audioUrl]);
-
-      const togglePlay = async () => {
-          if (!audioRef.current) return;
-
-          if (!audioCtxRef.current) {
-              const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-              const ctx = new AudioCtx();
-              audioCtxRef.current = ctx;
-              
-              const analyser = ctx.createAnalyser();
-              analyser.fftSize = 512;
-              analyser.smoothingTimeConstant = 0.8;
-              analyserRef.current = analyser;
-
-              const source = ctx.createMediaElementSource(audioRef.current);
-              source.connect(analyser);
-              analyser.connect(ctx.destination);
-          }
-
-          if (audioCtxRef.current?.state === 'suspended') {
-              await audioCtxRef.current.resume();
-          }
-
-          if (isPlaying) {
-              audioRef.current.pause();
-          } else {
-              audioRef.current.play();
-          }
-          setIsPlaying(!isPlaying);
-      };
-
-      // Visualizer Colors
-      let primaryColorHex = '#22d3ee'; // Default Cyan
-      let secondaryColorHex = '#3b82f6'; // Default Blue
-
-      if (theme.id === 'obsidian') { primaryColorHex = '#f59e0b'; secondaryColorHex = '#ea580c'; }
-      if (theme.id === 'arctic') { primaryColorHex = '#38bdf8'; secondaryColorHex = '#818cf8'; }
-      if (theme.id === 'quantum') { primaryColorHex = '#8b5cf6'; secondaryColorHex = '#d946ef'; }
-      if (theme.id === 'gilded') { primaryColorHex = '#10b981'; secondaryColorHex = '#fbbf24'; }
-      if (theme.id === 'crimson') { primaryColorHex = '#ef4444'; secondaryColorHex = '#f43f5e'; }
-      if (theme.id === 'cyberpunk') { primaryColorHex = '#d946ef'; secondaryColorHex = '#06b6d4'; } // Fuchsia & Cyan
-      if (theme.id === 'lux') { primaryColorHex = '#d946ef'; secondaryColorHex = '#fbbf24'; } // Violet & Gold
-
-      useEffect(() => {
-          let animationId: number;
-          let rotation = 0;
-
-          const render = () => {
-              const canvas = canvasRef.current;
-              const analyser = analyserRef.current;
-              
-              if (!canvas || !analyser) {
-                  animationId = requestAnimationFrame(render);
-                  return;
-              }
-              
-              const ctx = canvas.getContext('2d');
-              if (!ctx) return;
-
-              const bufferLength = analyser.frequencyBinCount;
-              const dataArray = new Uint8Array(bufferLength);
-              analyser.getByteFrequencyData(dataArray);
-
-              ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-              const centerX = canvas.width / 2;
-              const centerY = canvas.height / 2;
-              
-              // Calculate radius to start EXACTLY at the edge of the art
-              // Dims.artSize is diameter, so radius is / 2. Add a small buffer (8px).
-              const baseRadius = (dims.artSize / 2) + 12; 
-              
-              const bars = 90;
-              const step = (Math.PI * 2) / bars;
-
-              rotation += 0.002; // Slow rotation
-
-              for (let i = 0; i < bars; i++) {
-                  const dataIndex = Math.floor((i / bars) * (bufferLength * 0.7));
-                  const value = dataArray[dataIndex] || 0;
-                  // Scale value for bar length
-                  const barLen = (value / 255) * (dims.canvasSize * 0.15); // Dynamic length based on canvas size
-                  
-                  const angle = i * step + rotation;
-                  
-                  // Start point (on edge of album art)
-                  const x1 = centerX + Math.cos(angle) * baseRadius;
-                  const y1 = centerY + Math.sin(angle) * baseRadius;
-                  
-                  // End point
-                  const x2 = centerX + Math.cos(angle) * (baseRadius + barLen);
-                  const y2 = centerY + Math.sin(angle) * (baseRadius + barLen);
-
-                  ctx.beginPath();
-                  ctx.moveTo(x1, y1);
-                  ctx.lineTo(x2, y2);
-                  
-                  // Color based on theme
-                  const gradient = ctx.createLinearGradient(x1, y1, x2, y2);
-                  gradient.addColorStop(0, primaryColorHex);
-                  gradient.addColorStop(1, secondaryColorHex);
-                  
-                  ctx.strokeStyle = gradient;
-                  ctx.lineWidth = 3;
-                  ctx.lineCap = 'round';
-                  ctx.stroke();
-              }
-
-              // Outer glow ring (only when playing)
-              if (isPlaying) {
-                  const avg = dataArray.reduce((a, b) => a + b) / bufferLength;
-                  ctx.beginPath();
-                  ctx.arc(centerX, centerY, baseRadius + 4, 0, Math.PI * 2);
-                  ctx.strokeStyle = `rgba(255, 255, 255, ${Math.min(0.2, avg/500)})`;
-                  ctx.lineWidth = 1;
-                  ctx.stroke();
-              }
-
-              animationId = requestAnimationFrame(render);
-          };
-
-          render();
-          return () => cancelAnimationFrame(animationId);
-      }, [isPlaying, primaryColorHex, secondaryColorHex, dims]);
-
-      const formatTime = (t: number) => {
-          const m = Math.floor(t / 60);
-          const s = Math.floor(t % 60);
-          return `${m}:${s.toString().padStart(2, '0')}`;
-      };
-
-      return (
-          <div className="flex flex-col min-h-full relative bg-slate-950/50">
-              {/* Audio Element */}
-              <audio key={audioUrl} ref={audioRef} crossOrigin="anonymous" className="hidden" />
-              
-              {/* Top Half: Visualizer & Art */}
-              <div className="flex-1 w-full flex flex-col items-center justify-center relative min-h-[280px] p-4">
-                   
-                   {/* Background Blur */}
-                   {coverUrl && (
-                       <div className="absolute inset-0 z-0 opacity-20 blur-3xl scale-125 pointer-events-none overflow-hidden">
-                           <img src={coverUrl} className="w-full h-full object-cover" alt="" />
-                       </div>
-                   )}
-
-                   {/* Main Centerpiece */}
-                   <div 
-                        className="relative flex items-center justify-center"
-                        style={{ width: dims.canvasSize, height: dims.canvasSize }}
-                   >
-                        {/* Canvas Layer */}
-                        <canvas 
-                            ref={canvasRef} 
-                            width={dims.canvasSize} 
-                            height={dims.canvasSize} 
-                            className="absolute inset-0 z-10 pointer-events-none" 
-                        />
-                        
-                        {/* Album Art Container (Circular) */}
-                        <div 
-                            className={`relative rounded-full overflow-hidden z-20 shadow-2xl border-4 border-slate-900/50 ${isPlaying ? 'animate-spin-slow' : ''}`} 
-                            style={{ width: dims.artSize, height: dims.artSize, animationDuration: '30s' }}
-                        >
-                            {coverUrl ? (
-                                <img src={coverUrl} alt="Cover" className="w-full h-full object-cover" />
-                            ) : (
-                                <div className={`w-full h-full bg-gradient-to-br from-${theme.colors.primary}-900 to-slate-900 flex items-center justify-center`}>
-                                    <Headphones size={48} className={`text-${theme.colors.primary}-400 opacity-50`} />
-                                </div>
-                            )}
-                            {/* Overlay Gradient */}
-                            <div className="absolute inset-0 bg-black/20"></div>
-                        </div>
-
-                        {/* Play Button (Centered on Art) */}
-                        <button 
-                            onClick={togglePlay}
-                            className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-14 h-14 md:w-16 md:h-16 bg-white/10 backdrop-blur-md rounded-full flex items-center justify-center hover:scale-110 transition-transform border border-white/20 shadow-lg group`}
-                        >
-                            {isPlaying ? (
-                                <Pause fill="white" size={24} className="drop-shadow-md" />
-                            ) : (
-                                <Play fill="white" size={24} className="ml-1 drop-shadow-md" />
-                            )}
-                        </button>
-                   </div>
-                   
-                   {/* Title info below art */}
-                   <div className="mt-2 md:mt-4 text-center z-20 px-4 max-w-sm">
-                       <h2 className="text-lg md:text-2xl font-bold text-white leading-tight drop-shadow-lg line-clamp-1">{title || "Audio Overview"}</h2>
-                       <p className="text-xs md:text-sm text-slate-400 mt-1 font-medium">{topic || "Deep Dive Podcast"}</p>
-                   </div>
-              </div>
-
-              {/* Bottom Control Bar */}
-              <div className="w-full p-4 md:p-6 bg-slate-900/80 backdrop-blur-xl border-t border-white/5 z-30 shrink-0">
-                   {/* Progress Bar */}
-                   <div 
-                        className="relative w-full h-1.5 bg-slate-800 rounded-full cursor-pointer group mb-4"
-                        onClick={(e) => {
-                            if(audioRef.current && duration) {
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                const pos = (e.clientX - rect.left) / rect.width;
-                                audioRef.current.currentTime = pos * duration;
-                            }
-                        }}
-                    >
-                        <div 
-                            className={`absolute top-0 left-0 h-full bg-gradient-to-r from-${theme.colors.primary}-500 to-${theme.colors.secondary}-500 rounded-full`}
-                            style={{ width: `${duration ? (currentTime / duration) * 100 : 0}%` }}
-                        />
-                        {/* Thumb */}
-                        <div 
-                            className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity pointer-events-none"
-                            style={{ left: `${duration ? (currentTime / duration) * 100 : 0}%` }}
-                        />
-                   </div>
-
-                   <div className="flex items-center justify-between text-xs text-slate-500 font-mono mb-3">
-                       <span>{formatTime(currentTime)}</span>
-                       <span>{formatTime(duration)}</span>
-                   </div>
-
-                   <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-3">
-                             <button onClick={() => { if (audioRef.current) audioRef.current.currentTime -= 10; }} className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full">
-                                <span className="text-[10px] font-bold">-10s</span>
-                             </button>
-                             <button onClick={() => { if (audioRef.current) audioRef.current.currentTime += 10; }} className="text-slate-400 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full">
-                                <span className="text-[10px] font-bold">+10s</span>
-                             </button>
-                        </div>
-
-                        {onJoinLive && (
-                            <button 
-                                onClick={onJoinLive}
-                                className={`flex items-center gap-2 px-3 py-2 md:px-4 md:py-2 bg-${theme.colors.primary}-600 hover:bg-${theme.colors.primary}-500 text-white rounded-full text-xs font-bold shadow-lg shadow-${theme.colors.primary}-500/20 transition-all border border-white/10 shrink-0`}
-                            >
-                                <Mic size={14} /> 
-                                <span className="hidden xs:inline">Join Live</span>
-                                <span className="xs:hidden">Live</span>
-                            </button>
-                        )}
-                   </div>
-              </div>
-          </div>
-      );
-  };
-  
-  const FlashcardPlayer = ({ content }: { content: any }) => {
-    const [currentIndex, setCurrentIndex] = useState(0);
-    const [isFlipped, setIsFlipped] = useState(false);
-    const cards = content?.cards || [];
-    
-    // Shuffle logic
-    const [shuffledCards, setShuffledCards] = useState([...cards]);
-    const [isShuffled, setIsShuffled] = useState(false);
-
-    // Reset when content changes
-    useEffect(() => {
-        setShuffledCards([...cards]);
-        setCurrentIndex(0);
-        setIsFlipped(false);
-        setIsShuffled(false);
-    }, [content]);
-
-    const activeCards = isShuffled ? shuffledCards : cards;
-    const currentCard = activeCards[currentIndex];
-
-    const nextCard = (e?: React.MouseEvent) => {
-        e?.stopPropagation();
-        setIsFlipped(false);
-        setTimeout(() => {
-            setCurrentIndex(prev => (prev + 1) % activeCards.length);
-        }, 150);
-    };
-
-    const prevCard = (e?: React.MouseEvent) => {
-        e?.stopPropagation();
-        setIsFlipped(false);
-        setTimeout(() => {
-             setCurrentIndex(prev => (prev - 1 + activeCards.length) % activeCards.length);
-        }, 150);
-    };
-
-    const toggleShuffle = () => {
-        setIsFlipped(false);
-        if (isShuffled) {
-             setIsShuffled(false);
-             setCurrentIndex(0);
-        } else {
-             // Fisher-Yates shuffle
-             const shuffled = [...cards];
-             for (let i = shuffled.length - 1; i > 0; i--) {
-                 const j = Math.floor(Math.random() * (i + 1));
-                 [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-             }
-             setShuffledCards(shuffled);
-             setIsShuffled(true);
-             setCurrentIndex(0);
-        }
-    };
-
-    if (!currentCard) return <div className="p-8 text-center text-slate-500">No flashcards available.</div>;
-
-    return (
-        <div className="flex flex-col h-full bg-slate-950/50 relative overflow-hidden">
-             {/* Progress Header */}
-             <div className="p-4 flex justify-between items-center text-slate-400 border-b border-white/5">
-                 <span className="text-xs font-bold uppercase tracking-widest">{isShuffled ? 'Randomized' : 'Sequential'}</span>
-                 <span className="font-mono text-sm">{currentIndex + 1} / {activeCards.length}</span>
-             </div>
-
-             {/* Card Area */}
-             <div className="flex-1 flex items-center justify-center p-4 md:p-12 perspective-1000">
-                  <div 
-                    className={`relative w-full max-w-2xl aspect-[4/3] md:aspect-[16/9] cursor-pointer group perspective-1000`}
-                    onClick={() => setIsFlipped(!isFlipped)}
-                  >
-                        <div 
-                            className={`w-full h-full relative transition-all duration-500 preserve-3d ${isFlipped ? 'rotate-y-180' : ''}`}
-                            style={{ transformStyle: 'preserve-3d' }}
-                        >
-                            {/* FRONT */}
-                            <div className={`absolute inset-0 backface-hidden bg-gradient-to-br from-slate-900 to-slate-800 border border-white/10 rounded-2xl shadow-2xl flex flex-col items-center justify-center p-8 md:p-16 text-center hover:border-${theme.colors.primary}-500/30 transition-colors`}>
-                                <span className={`text-${theme.colors.primary}-400 text-xs font-bold uppercase tracking-widest mb-4`}>Term</span>
-                                <h2 className="text-2xl md:text-5xl font-bold text-white">{currentCard.term}</h2>
-                                <p className="text-slate-500 text-sm mt-8 absolute bottom-8">Tap to flip</p>
-                            </div>
-
-                            {/* BACK */}
-                            <div 
-                                className={`absolute inset-0 backface-hidden rotate-y-180 bg-gradient-to-br from-${theme.colors.primary}-900/20 to-slate-900 border border-${theme.colors.primary}-500/30 rounded-2xl shadow-2xl flex flex-col items-center justify-center p-8 md:p-16 text-center`}
-                            >
-                                <span className={`text-${theme.colors.secondary}-400 text-xs font-bold uppercase tracking-widest mb-4`}>Definition</span>
-                                <p className="text-lg md:text-2xl font-medium text-slate-200 leading-relaxed max-h-full overflow-y-auto">
-                                    {currentCard.definition}
-                                </p>
-                            </div>
-                        </div>
-                  </div>
-             </div>
-
-             {/* Controls */}
-             <div className="p-4 md:p-6 border-t border-white/5 flex items-center justify-center gap-6 bg-slate-900/50 backdrop-blur-md">
-                 <button onClick={toggleShuffle} className={`p-3 rounded-full hover:bg-white/5 transition-colors ${isShuffled ? `text-${theme.colors.primary}-400` : 'text-slate-500'}`} title="Shuffle">
-                     <Shuffle size={20} />
-                 </button>
-                 
-                 <div className="flex items-center gap-4">
-                     <button onClick={prevCard} className="p-4 bg-slate-800 hover:bg-slate-700 text-white rounded-full transition-all border border-white/5 hover:border-white/20 active:scale-95">
-                         <ChevronLeft size={24} />
-                     </button>
-                     
-                     <button 
-                        onClick={() => setIsFlipped(!isFlipped)} 
-                        className={`px-8 py-3 bg-${theme.colors.primary}-600/20 hover:bg-${theme.colors.primary}-600/30 text-${theme.colors.primary}-200 border border-${theme.colors.primary}-500/50 rounded-xl font-bold transition-all w-32`}
-                     >
-                         {isFlipped ? 'Show Term' : 'Show Def'}
-                     </button>
-
-                     <button onClick={nextCard} className="p-4 bg-slate-800 hover:bg-slate-700 text-white rounded-full transition-all border border-white/5 hover:border-white/20 active:scale-95">
-                         <ChevronRight size={24} />
-                     </button>
-                 </div>
-
-                 <button onClick={() => { setCurrentIndex(0); setIsFlipped(false); }} className="p-3 rounded-full hover:bg-white/5 text-slate-500 transition-colors" title="Reset">
-                     <RotateCcw size={20} />
-                 </button>
-             </div>
-
-             <style>{`
-                .perspective-1000 { perspective: 1000px; }
-                .preserve-3d { transform-style: preserve-3d; }
-                .backface-hidden { backface-visibility: hidden; }
-                .rotate-y-180 { transform: rotateY(180deg); }
-             `}</style>
-        </div>
-    );
-  };
-
-  const KnowledgeGraphViewer = ({ content }: { content: any }) => {
-     const canvasRef = useRef<HTMLCanvasElement>(null);
-     const containerRef = useRef<HTMLDivElement>(null);
-     const [selectedNode, setSelectedNode] = useState<any>(null);
-     const [scale, setScale] = useState(1);
-     const [offset, setOffset] = useState({ x: 0, y: 0 });
-     
-     // Simulation State
-     const nodesRef = useRef<any[]>([]);
-     const edgesRef = useRef<any[]>([]);
-     const isDraggingRef = useRef(false);
-     const dragNodeRef = useRef<any>(null);
-     const mouseRef = useRef({ x: 0, y: 0 });
-
-     const { theme } = useTheme();
-
-     // Init Simulation
-     useEffect(() => {
-         if (!content) return;
-         
-         const width = containerRef.current?.clientWidth || 800;
-         const height = containerRef.current?.clientHeight || 600;
-
-         // Initialize random positions near center
-         nodesRef.current = content.nodes.map((n: any) => ({
-             ...n,
-             x: width / 2 + (Math.random() - 0.5) * 100,
-             y: height / 2 + (Math.random() - 0.5) * 100,
-             vx: 0,
-             vy: 0,
-             radius: 20 + (n.category === 'Concept' ? 5 : 0) // Larger for key concepts
-         }));
-
-         edgesRef.current = content.edges.map((e: any) => ({
-             ...e,
-             source: nodesRef.current.find(n => n.id === e.source),
-             target: nodesRef.current.find(n => n.id === e.target)
-         })).filter((e: any) => e.source && e.target);
-
-     }, [content]);
-
-     // Physics Loop
-     useEffect(() => {
-         let animationId: number;
-         
-         const updatePhysics = () => {
-             const nodes = nodesRef.current;
-             const edges = edgesRef.current;
-             const width = canvasRef.current?.width || 800;
-             const height = canvasRef.current?.height || 600;
-
-             // Constants
-             const REPULSION = 2000;
-             const SPRING_LENGTH = 150;
-             const SPRING_STRENGTH = 0.05;
-             const DAMPING = 0.9;
-             const CENTER_FORCE = 0.01;
-
-             nodes.forEach(node => {
-                 let fx = 0, fy = 0;
-
-                 // 1. Repulsion (Nodes push apart)
-                 nodes.forEach(other => {
-                     if (node === other) return;
-                     const dx = node.x - other.x;
-                     const dy = node.y - other.y;
-                     const distSq = dx * dx + dy * dy;
-                     if (distSq > 0) {
-                         const force = REPULSION / Math.sqrt(distSq);
-                         fx += (dx / Math.sqrt(distSq)) * force;
-                         fy += (dy / Math.sqrt(distSq)) * force;
-                     }
-                 });
-
-                 // 2. Attraction (Edges pull together)
-                 edges.forEach(edge => {
-                     if (edge.source === node) {
-                         const other = edge.target;
-                         const dx = other.x - node.x;
-                         const dy = other.y - node.y;
-                         const dist = Math.sqrt(dx*dx + dy*dy);
-                         const force = (dist - SPRING_LENGTH) * SPRING_STRENGTH;
-                         fx += (dx/dist) * force;
-                         fy += (dy/dist) * force;
-                     } else if (edge.target === node) {
-                         const other = edge.source;
-                         const dx = other.x - node.x;
-                         const dy = other.y - node.y;
-                         const dist = Math.sqrt(dx*dx + dy*dy);
-                         const force = (dist - SPRING_LENGTH) * SPRING_STRENGTH;
-                         fx += (dx/dist) * force;
-                         fy += (dy/dist) * force;
-                     }
-                 });
-
-                 // 3. Center Gravity (Keep in view)
-                 const cx = width / 2;
-                 const cy = height / 2;
-                 fx += (cx - node.x) * CENTER_FORCE;
-                 fy += (cy - node.y) * CENTER_FORCE;
-
-                 // Apply forces
-                 if (!isDraggingRef.current || dragNodeRef.current !== node) {
-                     node.vx = (node.vx + fx * 0.05) * DAMPING;
-                     node.vy = (node.vy + fy * 0.05) * DAMPING;
-                     node.x += node.vx;
-                     node.y += node.vy;
-                 }
-                 
-                 // Boundaries
-                 node.x = Math.max(20, Math.min(width - 20, node.x));
-                 node.y = Math.max(20, Math.min(height - 20, node.y));
-             });
-         };
-
-         const draw = () => {
-             const canvas = canvasRef.current;
-             if (!canvas) return;
-             const ctx = canvas.getContext('2d');
-             if (!ctx) return;
-
-             ctx.clearRect(0, 0, canvas.width, canvas.height);
-             
-             // Draw Edges
-             edgesRef.current.forEach(edge => {
-                 ctx.beginPath();
-                 ctx.moveTo(edge.source.x, edge.source.y);
-                 ctx.lineTo(edge.target.x, edge.target.y);
-                 ctx.strokeStyle = `rgba(56, 189, 248, 0.2)`; // Cyan faint
-                 ctx.lineWidth = 1;
-                 ctx.stroke();
-                 
-                 // Label
-                 const midX = (edge.source.x + edge.target.x) / 2;
-                 const midY = (edge.source.y + edge.target.y) / 2;
-                 ctx.fillStyle = `rgba(148, 163, 184, 0.8)`;
-                 ctx.font = '10px sans-serif';
-                 ctx.fillText(edge.relation, midX, midY);
-             });
-
-             // Draw Nodes
-             nodesRef.current.forEach(node => {
-                 ctx.beginPath();
-                 ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-                 
-                 // Node Color based on selection or default
-                 if (selectedNode?.id === node.id) {
-                     ctx.fillStyle = '#f472b6'; // Pink select
-                     ctx.shadowBlur = 20;
-                     ctx.shadowColor = '#f472b6';
-                 } else {
-                     ctx.fillStyle = `rgba(34, 211, 238, 0.8)`; // Cyan default
-                     ctx.shadowBlur = 10;
-                     ctx.shadowColor = `rgba(34, 211, 238, 0.5)`;
-                 }
-                 ctx.fill();
-                 ctx.shadowBlur = 0; // Reset
-
-                 // Label
-                 ctx.fillStyle = '#fff';
-                 ctx.font = 'bold 12px sans-serif';
-                 ctx.textAlign = 'center';
-                 ctx.fillText(node.label, node.x, node.y + node.radius + 15);
-             });
-
-             updatePhysics();
-             animationId = requestAnimationFrame(draw);
-         };
-
-         draw();
-         return () => cancelAnimationFrame(animationId);
-     }, [content]);
-
-     // Mouse Handlers
-     const handleMouseDown = (e: React.MouseEvent) => {
-         const rect = canvasRef.current!.getBoundingClientRect();
-         const x = e.clientX - rect.left;
-         const y = e.clientY - rect.top;
-         
-         // Find clicked node
-         const clickedNode = nodesRef.current.find(n => {
-             const dist = Math.sqrt((n.x - x)**2 + (n.y - y)**2);
-             return dist < n.radius + 10;
-         });
-
-         if (clickedNode) {
-             isDraggingRef.current = true;
-             dragNodeRef.current = clickedNode;
-             setSelectedNode(clickedNode);
-         } else {
-             setSelectedNode(null);
-         }
-     };
-
-     const handleMouseMove = (e: React.MouseEvent) => {
-         if (isDraggingRef.current && dragNodeRef.current) {
-             const rect = canvasRef.current!.getBoundingClientRect();
-             dragNodeRef.current.x = e.clientX - rect.left;
-             dragNodeRef.current.y = e.clientY - rect.top;
-             dragNodeRef.current.vx = 0;
-             dragNodeRef.current.vy = 0;
-         }
-     };
-
-     const handleMouseUp = () => {
-         isDraggingRef.current = false;
-         dragNodeRef.current = null;
-     };
-
-     // Touch Handlers for Mobile Drag & Drop
-     const handleTouchStart = (e: React.TouchEvent) => {
-         if (e.target === canvasRef.current) e.preventDefault();
-         const rect = canvasRef.current!.getBoundingClientRect();
-         const touch = e.touches[0];
-         const x = touch.clientX - rect.left;
-         const y = touch.clientY - rect.top;
-         
-         // Find clicked node (with slightly larger touch target area)
-         const clickedNode = nodesRef.current.find(n => {
-             const dist = Math.sqrt((n.x - x)**2 + (n.y - y)**2);
-             return dist < n.radius + 20; 
-         });
-
-         if (clickedNode) {
-             isDraggingRef.current = true;
-             dragNodeRef.current = clickedNode;
-             setSelectedNode(clickedNode);
-         }
-     };
-
-     const handleTouchMove = (e: React.TouchEvent) => {
-         if (isDraggingRef.current && dragNodeRef.current) {
-             e.preventDefault(); // Stop scrolling while dragging
-             const rect = canvasRef.current!.getBoundingClientRect();
-             const touch = e.touches[0];
-             dragNodeRef.current.x = touch.clientX - rect.left;
-             dragNodeRef.current.y = touch.clientY - rect.top;
-             dragNodeRef.current.vx = 0;
-             dragNodeRef.current.vy = 0;
-         }
-     };
-
-     const handleTouchEnd = () => {
-         isDraggingRef.current = false;
-         dragNodeRef.current = null;
-     };
-
-     return (
-         <div className="flex h-full" ref={containerRef}>
-             {/* Graph Area */}
-             <div className="flex-1 relative bg-slate-950/50 overflow-hidden cursor-crosshair">
-                 <canvas 
-                    ref={canvasRef}
-                    width={containerRef.current?.clientWidth ? containerRef.current.clientWidth - 300 : 800} // Dynamic width minus sidebar
-                    height={containerRef.current?.clientHeight || 600}
-                    onMouseDown={handleMouseDown}
-                    onMouseMove={handleMouseMove}
-                    onMouseUp={handleMouseUp}
-                    onMouseLeave={handleMouseUp}
-                    onTouchStart={handleTouchStart}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={handleTouchEnd}
-                    className="block touch-none" // prevent default touch actions like scroll
-                 />
-                 <div className="absolute top-4 left-4 pointer-events-none">
-                     <p className="text-xs text-slate-500 bg-slate-900/80 px-2 py-1 rounded border border-white/5">
-                        Drag nodes to rearrange • Click to view details
-                     </p>
-                 </div>
-             </div>
-             
-             {/* Detail Sidebar */}
-             <div className="w-80 border-l border-white/10 bg-slate-900/80 p-6 flex flex-col backdrop-blur-xl">
-                 <h3 className="text-sm font-bold uppercase tracking-widest text-slate-500 mb-6 flex items-center gap-2">
-                     <Network size={16} /> Knowledge Entity
-                 </h3>
-                 
-                 {selectedNode ? (
-                     <div className="animate-in slide-in-from-right-4 fade-in duration-300">
-                         <div className={`w-12 h-12 rounded-full bg-${theme.colors.primary}-500/20 flex items-center justify-center mb-4 border border-${theme.colors.primary}-500/50`}>
-                             <Sparkles className={`text-${theme.colors.primary}-400`} size={24} />
-                         </div>
-                         <h2 className="text-2xl font-bold text-white mb-2">{selectedNode.label}</h2>
-                         <span className="inline-block px-2 py-1 rounded bg-slate-800 text-xs text-slate-400 mb-6 border border-white/5">
-                             {selectedNode.category}
-                         </span>
-                         
-                         <p className="text-slate-300 leading-relaxed text-sm">
-                             {selectedNode.summary}
-                         </p>
-
-                         <div className="mt-8 pt-6 border-t border-white/10">
-                             <h4 className="text-xs font-bold text-slate-500 mb-3">Connections</h4>
-                             <ul className="space-y-2">
-                                 {edgesRef.current
-                                    .filter(e => e.source.id === selectedNode.id || e.target.id === selectedNode.id)
-                                    .map((e, i) => (
-                                     <li key={i} className="text-xs text-slate-400 flex items-center gap-2">
-                                         <div className="w-1.5 h-1.5 rounded-full bg-cyan-500"></div>
-                                         <span className="opacity-50">{e.relation}</span>
-                                         <span className="text-slate-200">
-                                             {e.source.id === selectedNode.id ? e.target.label : e.source.label}
-                                         </span>
-                                     </li>
-                                 ))}
-                             </ul>
-                         </div>
-                     </div>
-                 ) : (
-                     <div className="flex flex-col items-center justify-center h-full text-center text-slate-500 space-y-4">
-                         <div className="w-16 h-16 rounded-full bg-slate-800/50 flex items-center justify-center">
-                             <Monitor size={32} className="opacity-50" />
-                         </div>
-                         <p className="text-sm">Select a node to inspect its neural pathways.</p>
-                     </div>
-                 )}
-             </div>
-         </div>
-     );
-  };
-
-  const SlidePlayer = ({ deck }: { deck: any }) => {
-     const [currentSlide, setCurrentSlide] = useState(0);
-      const [showNotes, setShowNotes] = useState(false);
-      const [isFullscreen, setIsFullscreen] = useState(false);
-
-      const nextSlide = () => setCurrentSlide(prev => Math.min(prev + 1, deck.slides.length - 1));
-      const prevSlide = () => setCurrentSlide(prev => Math.max(prev - 1, 0));
-      
-      const downloadHtml = () => {
-         if (!deck.html) return;
-         const blob = new Blob([deck.html], { type: 'text/html' });
-         const url = URL.createObjectURL(blob);
-         const a = document.createElement('a');
-         a.href = url;
-         a.download = `${deck.deckTitle.replace(/\s+/g, '_')}_Presentation.html`;
-         a.click();
-         URL.revokeObjectURL(url);
-      };
-
-      const slide = deck.slides[currentSlide];
-
-      return (
-          <div className={`flex flex-col h-full ${isFullscreen ? 'fixed inset-0 z-50 bg-black' : 'relative'}`}>
-              <div className="p-4 bg-slate-900 border-b border-white/5 flex flex-wrap justify-between items-center gap-2 shrink-0">
-                  <h4 className="font-semibold text-slate-300 flex items-center gap-2 truncate max-w-[200px] md:max-w-none">
-                      <Presentation size={18} className="text-rose-400 shrink-0" />
-                      {deck.deckTitle}
-                  </h4>
-                  <div className="flex items-center gap-2 ml-auto">
-                       {/* Export HTML Button */}
-                      <button 
-                        onClick={downloadHtml}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-lg transition-colors border border-white/5"
-                        title="Download Standalone HTML Presentation"
-                      >
-                          <FileCode size={14} />
-                          <span className="hidden sm:inline">Export HTML</span>
-                      </button>
-                      <button onClick={() => setIsFullscreen(!isFullscreen)} className="p-2 hover:bg-white/5 rounded-lg text-slate-400">
-                          {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-                      </button>
-                  </div>
-              </div>
-
-              <div className="flex-1 flex items-center justify-center bg-slate-950 p-4 md:p-8 relative overflow-hidden group">
-                  {/* Updated Container: Full height on mobile, Aspect Video on Desktop */}
-                  <div className="w-full max-w-5xl h-full md:h-auto md:aspect-video bg-gradient-to-br from-slate-900 to-slate-800 border border-white/10 rounded-xl shadow-2xl flex flex-col overflow-hidden relative">
-                      <div className="flex-1 p-6 md:p-12 flex flex-col justify-center relative z-10 overflow-y-auto">
-                          <h2 className="text-3xl md:text-5xl font-bold text-white mb-6 md:mb-8 leading-tight tracking-tight">
-                              {slide.slideTitle}
-                          </h2>
-                          <div className="space-y-4 md:space-y-4">
-                              {slide.bulletPoints.map((point: string, idx: number) => (
-                                  <div key={idx} className="flex items-start gap-3 md:gap-4">
-                                      <div className={`mt-2 w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-${theme.colors.primary}-400 shrink-0`}></div>
-                                      <p className="text-lg md:text-xl text-slate-300 leading-relaxed">{point}</p>
-                                  </div>
-                              ))}
-                          </div>
-                      </div>
-                  </div>
-                   <button onClick={prevSlide} disabled={currentSlide === 0} className={`absolute left-2 md:left-4 p-2 md:p-3 bg-black/50 hover:bg-${theme.colors.primary}-500 rounded-full text-white backdrop-blur-sm transition-all disabled:opacity-0 hover:scale-110 z-20`}>
-                      <ChevronLeft size={24} className="md:w-8 md:h-8" />
-                  </button>
-                  <button onClick={nextSlide} disabled={currentSlide === deck.slides.length - 1} className={`absolute right-2 md:right-4 p-2 md:p-3 bg-black/50 hover:bg-${theme.colors.primary}-500 rounded-full text-white backdrop-blur-sm transition-all disabled:opacity-0 hover:scale-110 z-20`}>
-                      <ChevronRight size={24} className="md:w-8 md:h-8" />
-                  </button>
-              </div>
-          </div>
-      );
-  };
-  
-  const ArtifactModal = ({ artifact, onClose, onJoinLive }: { artifact: Artifact; onClose: () => void; onJoinLive: () => void }) => {
-     const modalContent = (
-        <div className="fixed inset-0 bg-black/95 md:bg-black/90 backdrop-blur-md z-[9999] flex items-center justify-center p-0 md:p-4">
-            <div className={`glass-panel w-full h-full md:rounded-3xl flex flex-col animate-in fade-in zoom-in-95 duration-200 border-x-0 md:border border-white/10 shadow-2xl overflow-hidden ${artifact.type === 'slideDeck' ? 'max-w-7xl md:h-[90vh]' : 'max-w-5xl md:h-[85vh]'}`}>
-                <div className="flex justify-between items-center p-3 md:p-6 border-b border-white/10 bg-slate-900/50 shrink-0 safe-top">
-                    <h3 className="text-base md:text-xl font-bold flex items-center gap-3 text-white truncate pr-2">
-                        {artifact.title}
-                    </h3>
-                    <div className="flex items-center gap-2 shrink-0">
-                        <button onClick={() => handleShareArtifact(artifact)} className="p-2 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors">
-                            <Share2 size={20} />
-                        </button>
-                        <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-slate-400 hover:text-white transition-colors"><X size={24}/></button>
-                    </div>
-                </div>
-                
-                <div className={`flex-1 bg-slate-950 min-h-0 ${artifact.type === 'audioOverview' || artifact.type === 'slideDeck' || artifact.type === 'flashcards' || artifact.type === 'knowledgeGraph' ? 'overflow-hidden' : 'overflow-y-auto'}`}>
-                    {/* Render content based on type */}
-                    {artifact.type === 'audioOverview' && (
-                        <div className="flex flex-col md:grid md:grid-cols-2 h-full">
-                            {/* Left Col: Player (50% on mobile with scrolling, Full on desktop) */}
-                            <div className="h-[50%] md:h-full border-b md:border-b-0 md:border-r border-white/5 bg-slate-900/30 relative overflow-y-auto md:overflow-hidden scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
-                                <AudioPlayerVisualizer 
-                                    audioUrl={artifact.content.audioUrl} 
-                                    coverUrl={artifact.content.coverUrl} 
-                                    onJoinLive={onJoinLive} 
-                                    title={artifact.content.title}
-                                    topic={artifact.content.topic}
-                                />
-                            </div>
-                            
-                            {/* Right Col: Transcript (50% on mobile, Full on desktop) */}
-                            <div className="h-[50%] md:h-full overflow-y-auto bg-slate-950 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
-                                <div className="p-4 md:p-8 space-y-4">
-                                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest sticky top-0 bg-slate-950 py-2 z-10 border-b border-white/5">Transcript</h4>
-                                    {artifact.content.script.split('\n').map((line: string, i: number) => {
-                                        const parts = line.split(':');
-                                        const speaker = parts[0]?.trim();
-                                        const text = parts.slice(1).join(':').trim();
-                                        
-                                        if (!text) return null;
-
-                                        const isJoe = speaker.toLowerCase().includes('joe');
-                                        // Use dynamic bubble styling
-                                        const bubbleColor = isJoe ? `bg-${theme.colors.primary}-900/20 border-${theme.colors.primary}-500/10` : `bg-${theme.colors.secondary}-900/20 border-${theme.colors.secondary}-500/10`;
-                                        const textColor = isJoe ? `text-${theme.colors.primary}-100` : `text-${theme.colors.secondary}-100`;
-                                        const alignClass = isJoe ? 'mr-8 md:mr-12' : 'ml-8 md:ml-12';
-                                        
-                                        return (
-                                            <div key={i} className={`flex flex-col gap-1 ${alignClass} group animate-in slide-in-from-bottom-2 duration-500`}>
-                                                <span className={`text-[10px] font-bold uppercase tracking-widest text-slate-500 ml-1 mb-1 ${!isJoe && 'text-right'}`}>
-                                                    {speaker}
-                                                </span>
-                                                <div className={`p-3 md:p-4 rounded-2xl text-sm md:text-base leading-relaxed border ${bubbleColor} ${textColor} hover:brightness-110 transition-all shadow-sm`}>
-                                                    {text}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                    
-                    {/* Infographic Renderer */}
-                    {artifact.type === 'infographic' && (
-                        <div className="flex flex-col items-center p-4 md:p-8 gap-4 overflow-y-auto h-full">
-                            <img src={artifact.content.imageUrl} className="w-full max-w-4xl rounded-lg shadow-2xl border border-white/10" alt="Generated Infographic" />
-                            <a 
-                                href={artifact.content.imageUrl} 
-                                download="infographic.png"
-                                className={`flex items-center gap-2 px-6 py-3 bg-${theme.colors.primary}-600 hover:bg-${theme.colors.primary}-500 text-white rounded-xl font-bold shadow-lg mt-4 shrink-0`}
-                            >
-                                <Download size={18} /> Download Image
-                            </a>
-                        </div>
-                    )}
-
-                    {/* Slide Deck Player */}
-                    {artifact.type === 'slideDeck' && <SlidePlayer deck={artifact.content} />}
-
-                    {/* Flashcard Player */}
-                    {artifact.type === 'flashcards' && <FlashcardPlayer content={artifact.content} />}
-
-                    {/* Neural Knowledge Graph */}
-                    {artifact.type === 'knowledgeGraph' && <KnowledgeGraphViewer content={artifact.content} />}
-                    
-                    {/* Fallback for others */}
-                    {(artifact.type === 'quiz') && (
-                        <div className="p-6 md:p-8">
-                            <pre className="text-xs text-slate-400 overflow-auto">{JSON.stringify(artifact.content, null, 2)}</pre>
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-      );
-      // Use createPortal to render the modal at the document root, above all other layers
-      return createPortal(modalContent, document.body);
   };
 
   if (liveSessionActive) {
@@ -1013,24 +1111,30 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
                      </div>
                  ) : showAudioConfig ? (
                      <div className={`bg-slate-900/90 border border-${theme.colors.primary}-500/30 p-5 rounded-xl space-y-5 animate-in fade-in zoom-in-95`}>
-                         {/* Format/Mode Selector */}
+                         {/* Podcast Style Selector */}
                          <div>
-                             <label className="text-xs text-slate-400 uppercase font-semibold block mb-2">Format</label>
-                             <div className="grid grid-cols-2 gap-2">
-                                <button
-                                    onClick={() => setAudioMode('Standard')}
-                                    className={`flex flex-col items-center justify-center gap-1 p-3 rounded-lg border transition-all ${audioMode === 'Standard' ? `bg-${theme.colors.primary}-600/20 border-${theme.colors.primary}-500 text-${theme.colors.primary}-200` : 'bg-slate-800 border-transparent text-slate-400 hover:bg-slate-700'}`}
-                                >
-                                    <Mic size={18} />
-                                    <span className="text-xs font-medium">Deep Dive</span>
-                                </button>
-                                <button
-                                    onClick={() => setAudioMode('Learn')}
-                                    className={`flex flex-col items-center justify-center gap-1 p-3 rounded-lg border transition-all ${audioMode === 'Learn' ? `bg-${theme.colors.primary}-600/20 border-${theme.colors.primary}-500 text-${theme.colors.primary}-200` : 'bg-slate-800 border-transparent text-slate-400 hover:bg-slate-700'}`}
-                                >
-                                    <GraduationCap size={18} />
-                                    <span className="text-xs font-medium">Study Guide</span>
-                                </button>
+                             <label className="text-xs text-slate-400 uppercase font-semibold block mb-2">Podcast Style</label>
+                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                {PODCAST_STYLES.map(style => {
+                                    let Icon = Mic;
+                                    if(style.icon === 'Flame') Icon = Flame;
+                                    if(style.icon === 'Newspaper') Icon = Newspaper;
+                                    if(style.icon === 'Coffee') Icon = Coffee;
+                                    if(style.icon === 'GraduationCap') Icon = GraduationCap;
+                                    if(style.icon === 'Users') Icon = Users;
+
+                                    return (
+                                        <button
+                                            key={style.id}
+                                            onClick={() => setAudioStyle(style.id)}
+                                            className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-lg border transition-all ${audioStyle === style.id ? `bg-${theme.colors.primary}-600/20 border-${theme.colors.primary}-500 text-${theme.colors.primary}-200` : 'bg-slate-800 border-transparent text-slate-400 hover:bg-slate-700'}`}
+                                            title={style.desc}
+                                        >
+                                            <Icon size={18} />
+                                            <span className="text-[10px] font-medium text-center leading-tight">{style.label}</span>
+                                        </button>
+                                    );
+                                })}
                              </div>
                          </div>
 
@@ -1040,11 +1144,11 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
                              <div className="space-y-2">
                                 {/* Joe Voice */}
                                 <div className="flex items-center gap-2">
-                                    <span className={`text-[10px] font-bold bg-${theme.colors.primary}-900/50 text-${theme.colors.primary}-300 px-1.5 py-0.5 rounded border border-${theme.colors.primary}-500/20`}>JOE</span>
+                                    <span className={`text-[10px] font-bold bg-${theme.colors.primary}-900/50 text-${theme.colors.primary}-300 px-1.5 py-0.5 rounded border border-${theme.colors.primary}-500/20`}>HOST A</span>
                                     <select 
                                         value={selectedVoices.joe}
                                         onChange={(e) => setSelectedVoices(prev => ({ ...prev, joe: e.target.value }))}
-                                        className="flex-1 bg-slate-800 border-none rounded text-xs text-white p-1.5 focus:ring-1 focus:ring-cyan-500"
+                                        className="flex-1 bg-slate-800 border-none rounded text-xs text-white p-2 focus:ring-1 focus:ring-cyan-500"
                                     >
                                         {VOICES.joe.map(v => (
                                             <option key={v.id} value={v.id}>{v.name}</option>
@@ -1053,11 +1157,11 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
                                 </div>
                                 {/* Jane Voice */}
                                 <div className="flex items-center gap-2">
-                                    <span className={`text-[10px] font-bold bg-${theme.colors.secondary}-900/50 text-${theme.colors.secondary}-300 px-1.5 py-0.5 rounded border border-${theme.colors.secondary}-500/20`}>JANE</span>
+                                    <span className={`text-[10px] font-bold bg-${theme.colors.secondary}-900/50 text-${theme.colors.secondary}-300 px-1.5 py-0.5 rounded border border-${theme.colors.secondary}-500/20`}>HOST B</span>
                                     <select 
                                         value={selectedVoices.jane}
                                         onChange={(e) => setSelectedVoices(prev => ({ ...prev, jane: e.target.value }))}
-                                        className="flex-1 bg-slate-800 border-none rounded text-xs text-white p-1.5 focus:ring-1 focus:ring-blue-500"
+                                        className="flex-1 bg-slate-800 border-none rounded text-xs text-white p-2 focus:ring-1 focus:ring-blue-500"
                                     >
                                         {VOICES.jane.map(v => (
                                             <option key={v.id} value={v.id}>{v.name}</option>
@@ -1085,9 +1189,9 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
 
                          <button 
                             onClick={() => handleGenerate('audioOverview')}
-                            className={`w-full py-2.5 bg-gradient-to-r from-${theme.colors.primary}-500 to-${theme.colors.secondary}-600 text-white font-bold rounded-lg shadow-lg shadow-${theme.colors.primary}-500/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2`}
+                            className={`w-full py-3 bg-gradient-to-r from-${theme.colors.primary}-500 to-${theme.colors.secondary}-600 text-white font-bold rounded-lg shadow-lg shadow-${theme.colors.primary}-500/20 hover:scale-[1.02] transition-all flex items-center justify-center gap-2`}
                         >
-                            <Wand2 size={16} /> Generate {audioMode === 'Learn' ? 'Guide' : 'Podcast'}
+                            <Wand2 size={16} /> Generate {audioStyle}
                          </button>
                      </div>
                  ) : (
