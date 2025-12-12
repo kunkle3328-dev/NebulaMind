@@ -312,9 +312,9 @@ import React, { useState, useRef } from 'react';
                                 <p className="text-sm text-slate-300 mb-4 leading-relaxed">
                                     Nebula Scout is an <strong>autonomous research agent</strong>. Give it a topic, and it will search the web, identify high-quality sources, and ingest them into your notebook automatically.
                                 </p>
-                                <div className="flex gap-2">
+                                <div className="flex w-full gap-2 items-center">
                                     <input 
-                                        className={`flex-1 bg-slate-900 border border-slate-700 rounded-xl p-4 focus:ring-2 focus:ring-${theme.colors.primary}-500 outline-none text-white placeholder-slate-500`}
+                                        className={`flex-1 min-w-0 h-14 bg-slate-900 border border-slate-700 rounded-xl px-4 focus:ring-2 focus:ring-${theme.colors.primary}-500 outline-none text-white placeholder-slate-500`}
                                         placeholder="e.g. The future of solid state batteries"
                                         value={inputValue}
                                         onChange={(e) => setInputValue(e.target.value)}
@@ -324,7 +324,7 @@ import React, { useState, useRef } from 'react';
                                     <button 
                                         onClick={handleAddSource}
                                         disabled={isProcessing || !inputValue.trim()}
-                                        className={`px-6 rounded-xl font-bold flex items-center justify-center transition-all ${isProcessing ? 'bg-slate-800 text-slate-500' : `bg-${theme.colors.accent}-600 hover:bg-${theme.colors.accent}-500 text-white shadow-lg`}`}
+                                        className={`w-14 h-14 shrink-0 rounded-xl font-bold flex items-center justify-center transition-all ${isProcessing ? 'bg-slate-800 text-slate-500' : `bg-${theme.colors.accent}-600 hover:bg-${theme.colors.accent}-500 text-white shadow-lg`}`}
                                     >
                                         {isProcessing ? <Loader2 className="animate-spin" /> : <Search />}
                                     </button>

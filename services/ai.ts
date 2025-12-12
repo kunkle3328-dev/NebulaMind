@@ -15,6 +15,17 @@ const MODEL_LIVE = 'gemini-2.5-flash-native-audio-preview-09-2025';
 const MODEL_TTS = 'gemini-2.5-flash-preview-tts';
 const MODEL_IMAGE = 'gemini-2.5-flash-image';
 
+// Helper to clean JSON string
+const cleanJsonString = (str: string) => {
+    let cleaned = str.trim();
+    if (cleaned.startsWith('```json')) {
+        cleaned = cleaned.replace(/^```json/, '').replace(/```$/, '');
+    } else if (cleaned.startsWith('```')) {
+        cleaned = cleaned.replace(/^```/, '').replace(/```$/, '');
+    }
+    return cleaned;
+};
+
 // Helper to combine sources into context
 const formatContext = (sources: Source[]): string => {
   return sources.map(s => `SOURCE: ${s.title}\nCONTENT:\n${s.content}\n---`).join('\n');
@@ -164,31 +175,28 @@ const parseHtmlContent = (html: string) => {
 };
 
 export const fetchWebsiteContent = async (url: string): Promise<string> => {
-    // Attempt 1: corsproxy.io
-    try {
-        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
-        const response = await fetch(proxyUrl);
-        if (response.ok) {
-            const html = await response.text();
-            return parseHtmlContent(html);
+    // List of CORS proxies to attempt
+    const proxies = [
+        `https://corsproxy.io/?${encodeURIComponent(url)}`,
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`
+    ];
+
+    for (const proxyUrl of proxies) {
+        try {
+            const response = await fetch(proxyUrl);
+            if (response.ok) {
+                const html = await response.text();
+                return parseHtmlContent(html);
+            }
+        } catch (e) {
+            console.warn(`Proxy failed: ${proxyUrl}`, e);
         }
-    } catch (e) {
-        console.warn("Primary CORS proxy failed, trying fallback...", e);
     }
 
-    // Attempt 2: allorigins.win (Fallback)
-    try {
-        const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-        const response = await fetch(proxyUrl);
-        if (response.ok) {
-            const html = await response.text();
-            return parseHtmlContent(html);
-        }
-    } catch (e) {
-        console.error("Fallback CORS proxy failed", e);
-    }
-
-    throw new Error("Could not fetch website content. The site may be blocking automated access or forcing CORS.");
+    // Fallback if all proxies fail - do not throw, but return a placeholder
+    // This prevents the entire "Scout" process from crashing on a single locked site.
+    return `[System: Content inaccessible due to site security settings (CORS/Anti-Bot). The AI is aware of this source at ${url} but cannot read its full text directly.]`;
 };
 
 export const runNebulaScout = async (topic: string, onProgress: (msg: string) => void): Promise<Source[]> => {
@@ -198,11 +206,21 @@ export const runNebulaScout = async (topic: string, onProgress: (msg: string) =>
         // 1. Identify targets using Google Search Tool
         onProgress(`Scouting sector: "${topic}"...`);
         
-        // NOTE: We cannot use responseMimeType: 'application/json' with googleSearch tool.
-        // We must rely on the groundingMetadata to get the URLs.
+        // Use an explicit and demanding prompt to get multiple results
         const searchPrompt = `
-            Find 3 authoritative, high-quality sources about: "${topic}".
-            Summarize them briefly.
+            Perform a comprehensive search about: "${topic}".
+            
+            GOAL: Find exactly 5 distinct, high-quality sources that cover different aspects of this topic.
+            
+            REQUIREMENT: You MUST utilize the Google Search tool multiple times or broadly enough to return at least 5 unique URLs.
+            
+            OUTPUT FORMAT:
+            Provide a PURE JSON array of objects. Do not add markdown backticks.
+            [
+              {"title": "Title 1", "url": "https://url1.com"},
+              {"title": "Title 2", "url": "https://url2.com"},
+              ...
+            ]
         `;
 
         const scoutResponse = await ai.models.generateContent({
@@ -210,17 +228,14 @@ export const runNebulaScout = async (topic: string, onProgress: (msg: string) =>
             contents: searchPrompt,
             config: {
                 tools: [{ googleSearch: {} }],
-                // Removed conflicting JSON schema/mimetype to fix HTTP 400 error
             }
         });
 
-        // Extract URLs from Grounding Metadata
-        const chunks = scoutResponse.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-        
-        // Map to unique targets
-        const uniqueUrls = new Set();
         const targets: {url: string, title: string}[] = [];
+        const uniqueUrls = new Set<string>();
 
+        // Strategy A: Grounding Metadata (Preferred)
+        const chunks = scoutResponse.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
         for (const chunk of chunks) {
             if (chunk.web?.uri && !uniqueUrls.has(chunk.web.uri)) {
                 uniqueUrls.add(chunk.web.uri);
@@ -230,12 +245,37 @@ export const runNebulaScout = async (topic: string, onProgress: (msg: string) =>
                 });
             }
         }
-        
-        // Limit to top 3 to match original intent
-        const finalTargets = targets.slice(0, 3);
 
-        if (finalTargets.length === 0) {
-            throw new Error("Scout failed to identify valid targets (No search results returned).");
+        // Strategy B: Text Parsing (Fallback if metadata is empty)
+        if (targets.length === 0 && scoutResponse.text) {
+            try {
+                const jsonStr = cleanJsonString(scoutResponse.text);
+                // Try to find JSON block if mixed text
+                const jsonMatch = jsonStr.match(/\[.*\]/s);
+                if (jsonMatch) {
+                    const json = JSON.parse(jsonMatch[0]);
+                    if (Array.isArray(json)) {
+                        json.forEach((item: any) => {
+                            if (item.url && !uniqueUrls.has(item.url)) {
+                                uniqueUrls.add(item.url);
+                                targets.push({ url: item.url, title: item.title || "Web Source" });
+                            }
+                        });
+                    }
+                } 
+            } catch (e) {
+                console.warn("Failed to parse text fallback for sources", e);
+            }
+        }
+        
+        // Force limit to 5
+        const finalTargets = targets.slice(0, 5);
+
+        if (finalTargets.length < 2) {
+             // If we STILL have 0 or 1, user experience is poor. But we proceed with what we have.
+             if (finalTargets.length === 0) {
+                 throw new Error("Scout failed to identify valid targets (No search results returned).");
+             }
         }
 
         // 2. Ingest Content
@@ -243,25 +283,37 @@ export const runNebulaScout = async (topic: string, onProgress: (msg: string) =>
         
         for (const target of finalTargets) {
             onProgress(`Acquiring target: ${target.title}...`);
+            let content = "";
+            let isScraped = false;
+
+            // Attempt to Scrape using the robust fetchWebsiteContent
             try {
-                const content = await fetchWebsiteContent(target.url);
-                if (content.length > 500) { // basic validation
-                    newSources.push({
-                        id: crypto.randomUUID(),
-                        type: 'website',
-                        title: target.title,
-                        content: content,
-                        createdAt: Date.now(),
-                        metadata: { originalUrl: target.url, scouted: true }
-                    });
+                content = await fetchWebsiteContent(target.url);
+                if (content.length > 200 && !content.includes("[System: Content inaccessible")) { 
+                    isScraped = true;
                 }
             } catch (e) {
-                console.warn(`Failed to ingest ${target.url}`, e);
+                console.warn(`Failed to ingest ${target.url}, using fallback.`, e);
             }
+
+            // Fallback Logic: If scraping failed or returned the placeholder
+            if (!isScraped) {
+                content = content || `[Nebula Scout: Auto-Generated Summary]\n\nSource Title: ${target.title}\nSource URL: ${target.url}\n\nNote: The full content of this website could not be automatically scraped.`;
+            }
+
+            // Add source (Scraped or Fallback)
+            newSources.push({
+                id: crypto.randomUUID(),
+                type: 'website',
+                title: target.title,
+                content: content,
+                createdAt: Date.now(),
+                metadata: { originalUrl: target.url, scouted: true, fullTextAvailable: isScraped }
+            });
         }
 
         if (newSources.length === 0) {
-            throw new Error("Scout identified targets but could not extract content (CORS/Protection).");
+            throw new Error("Scout mission failed: No sources could be added.");
         }
 
         return newSources;
@@ -375,43 +427,48 @@ export const generateArtifact = async (
           // 1. Generate a specialized "Design Brief" prompt based on sources
           const designBriefResponse = await ai.models.generateContent({
               model: MODEL_TEXT,
-              contents: `You are a world-class Data Visualization Director. 
-              Analyze the context and extract the MOST important statistics and a title to create a high-fidelity 3D infographic.
+              contents: `You are a world-class Data Visualization Director working for a top-tier design agency (like Canva or Pentagram).
+              
+              GOAL: Create a highly specific image generation prompt for a VERTICAL (9:16 aspect ratio) professional infographic about the provided context.
 
-              GOAL: Create a prompt for an AI Image Generator (Imagen 3) that will result in a PHOTOREALISTIC, PROFESSIONAL INFOGRAPHIC with READABLE TEXT and INFORMATIVE CHARTS.
+              DESIGN STYLE:
+              - Dense Information Layout: "Educational Poster" style.
+              - Modern, clean, flat vector art with slight isometric elements.
+              - High contrast typography. Readable headings.
+              - Color Palette: Professional tech blues/purples OR vibrant gradients (dependent on topic).
+              - Composition: Vertical layout optimized for mobile scrolling. Top header, followed by multiple distinct sections containing key stats and icons.
 
-              CRITICAL RULES:
-              - The image MUST look like a professional business/tech infographic layout.
-              - It MUST include a specific TITLE and 3-4 KEY DATA POINTS with labels.
-              - Style: "Futuristic Glass UI", "HUD Dashboard", "Financial Tech Interface", "Clean Data Visualization".
-              - AVOID: "Messy text", "Cartoon vector art". Prefer "High-fidelity 3D renders of charts".
+              CONTENT EXTRACTION:
+              Analyze the context and extract:
+              1. Main Title (Catchy, short).
+              2. A short introductory paragraph summarizing the core concept (2 sentences).
+              3. 6 distinct Key Statistics, Facts, or Steps (numbered).
+              4. A "Did You Know?" footer section.
 
-              TASK:
-              Write a detailed PROMPT string for the image model. Use this structure:
-              "A professional high-fidelity 3D infographic about [TOPIC].
-              Layout: Central futuristic glass interface showing data visualization.
-              Title: Large, clear 3D header text '[TITLE]' at top.
-              Key Data: 
-              1. A glowing holographic chart showing '[STAT 1]' with label '[LABEL 1]'.
-              2. A sleek glass panel displaying '[STAT 2]' with label '[LABEL 2]'.
-              3. A digital readout showing '[STAT 3]' with label '[LABEL 3]'.
-              Style: Dark cinematic background, neon [COLOR] accents, volumetric lighting, 8k resolution, Unreal Engine 5 render, highly detailed, sharp text."
+              OUTPUT PROMPT STRUCTURE:
+              "A professional vertical infographic (9:16 aspect ratio) educational poster about [TOPIC].
+              Style: High-quality vector illustration, flat design, Behance/Dribbble quality, clean white space, text-rich.
+              Layout:
+              - Header: Bold text '[TITLE]' at the top with a relevant icon.
+              - Section 1: Intro summary block.
+              - Section 2: Grid of 6 distinct icons labeled with key stats: [FACT 1], [FACT 2], [FACT 3], [FACT 4], [FACT 5], [FACT 6].
+              - Section 3: Central visual metaphor [METAPHOR] with connecting lines to text labels.
+              - Footer: 'Did You Know?' fact box.
+              Render: 8k resolution, sharp lines, highly detailed, legible text, infographic style."
 
               CONTEXT:
               ${context.substring(0, 15000)}
               
-              Output ONLY the prompt string.`
+              Output ONLY the final prompt string.`
           });
           
-          const imagePrompt = designBriefResponse.text || "A photorealistic 3D infographic visualization, futuristic technology, glowing hologram, glass texture, 8k resolution, cinematic lighting.";
+          const imagePrompt = designBriefResponse.text || "A professional vertical infographic, 9:16 aspect ratio, clean vector art, high quality flat design, business statistics, readable text, 8k resolution.";
 
           // 2. Generate the Image using the extracted brief
+          // Note: using 2.5-flash-image which listens to aspect ratio instructions in text fairly well for vertical layouts
           const imageResponse = await ai.models.generateContent({
               model: MODEL_IMAGE,
               contents: { parts: [{ text: imagePrompt }] },
-              config: {
-                   // Using default aspect ratio (1:1) is often safest for quality
-              }
           });
 
           let base64Image = null;
@@ -556,7 +613,9 @@ export const generateArtifact = async (
         }
       });
 
-      const content = response.text ? JSON.parse(response.text) : null;
+      const rawText = response.text || "{}";
+      const cleanText = cleanJsonString(rawText);
+      const content = JSON.parse(cleanText);
       
       // If it's a slide deck, enrich it with the HTML version
       if (type === 'slideDeck' && content) {
@@ -576,7 +635,8 @@ export const generateAudioOverview = async (
     length: 'Short' | 'Medium' | 'Long' = 'Medium',
     style: 'Deep Dive' | 'Heated Debate' | 'Casual Chat' | 'News Brief' | 'Study Guide' = 'Deep Dive',
     voices: { joe: string; jane: string } = { joe: 'Puck', jane: 'Aoede' },
-    onProgress?: (status: string) => void
+    onProgress?: (status: string) => void,
+    learningIntent?: string // Optional intent for Study Guide
 ) => {
     const context = formatContext(sources);
     
@@ -587,6 +647,7 @@ export const generateAudioOverview = async (
 
     // --- STYLE DEFINITIONS ---
     let personaInstruction = "";
+    let structuralInstruction = ""; // For Study Guide Layering
     
     if (style === 'Deep Dive') {
         personaInstruction = `
@@ -637,22 +698,62 @@ export const generateAudioOverview = async (
         - No tangents. Just facts.
         `;
     } else if (style === 'Study Guide') {
+        // ENHANCED STUDY GUIDE LOGIC
+        const intent = learningIntent || 'Understand Basics';
+        
+        // Define nuances based on Learning Intent
+        let intentNuance = "";
+        if (intent === 'Exam Prep') {
+            intentNuance = "Focus on definitions, key dates, distinct classifications, and potential test questions. BE RIGOROUS. Use 'Quiz Mode' where Joe asks a question, pauses briefly, and Jane answers it.";
+        } else if (intent === 'Apply') {
+            intentNuance = "Focus on practical application. How does this work in the real world? Use concrete scenarios and case studies.";
+        } else if (intent === 'Teach') {
+            intentNuance = "Focus on the Feynman Technique. Explain complex jargon using simple, unexpected analogies (e.g., explaining CPU like a kitchen chef).";
+        } else {
+            intentNuance = "Focus on building a strong mental model. Connect big ideas before diving into details. Create a 'Map' for the listener.";
+        }
+
         personaInstruction = `
-        STYLE: "Study Guide" (Think "Khan Academy" meets Podcast).
+        STYLE: "Guided Lesson" (Private Tutor Session).
+        
         HOSTS:
-        - JOE (Host A): The Student. Asks the questions the listener is thinking.
-        - JANE (Host B): The Tutor. Explains clearly, uses analogies, repeats key definitions.
-        TONE: Encouraging, educational, slow-paced.
-        DYNAMICS:
-        - "So, if I understand correctly...", "Let's recap".
-        - Quiz the listener: "Pause and think about X".
-        - Focus on memorization and understanding core concepts.
+        - JOE (Host A): THE INSTRUCTOR. Structured, clear, patient. Drives the lesson plan.
+        - JANE (Host B): THE STUDENT PROXY. Curious, intelligent but "new" to the topic. Asks the "dumb" questions the listener might have. Challenges assumptions. Says "Wait, explain that again" when things get complex.
+        
+        LEARNING INTENT: ${intent}
+        INTENT NUANCE: ${intentNuance}
+        
+        PEDAGOGY RULES:
+        1. NO SUMMARY. TEACHING ONLY. Do not just list facts. Explain them.
+        2. Use Source-Aware Teaching: Explicitly mention if sources agree, disagree, or complement each other.
+        3. Use Socratic Method: Jane should interrupt to clarify. Joe should verify Jane's understanding.
+        `;
+
+        structuralInstruction = `
+        REQUIRED 4-LAYER TEACHING FRAMEWORK:
+        
+        Layer 1: The Mental Map (Intro)
+        - Start with the "Big Picture". What is this topic and why does it matter?
+        - Outline the 3-5 core pillars you will cover.
+        
+        Layer 2: Concept Breakdown (The Meat)
+        - Go through each pillar one by one.
+        - Joe defines it. Jane asks for an example. Joe gives a concrete analogy.
+        - If Intent is 'Exam Prep': Joe must ask a "Test Yourself" question.
+        - If Intent is 'Teach': Joe must use a simplified analogy.
+        
+        Layer 3: Source Grounding (Evidence)
+        - Explicitly cite the sources. "Source A mentions..." "The data in the PDF shows..."
+        
+        Layer 4: Knowledge Lock-In (Conclusion)
+        - Recap the key principles (not just a list).
+        - Give 1 "If you remember nothing else..." insight.
         `;
     }
 
     try {
         // 1. Generate the script text first
-        if (onProgress) onProgress(`Writing ${style} script...`);
+        if (onProgress) onProgress(`Synthesizing ${style} Script...`);
 
         const systemInstruction = `You are the primary reasoning model (Gemini Pro 3) for a two-host AI podcast studio.
 
@@ -663,10 +764,11 @@ Core responsibilities:
 
 ${personaInstruction}
 
+${structuralInstruction || `
 Structure:
 1. **The Intro**: Set the stage immediately. Welcome the listener to the ${style} podcast. Explicitly say "Welcome back to..." or "Hello everyone...". Introduce the topic clearly.
-2. **The Meat**: Analyze/Discuss/Debate the source content.
-3. **The Outro**: A solid conclusion or sign-off.
+2. **The Meat**: Analyze/Discuss/Debate the source material.
+3. **The Outro**: A solid conclusion or sign-off.`}
 
 Constraints:
 - All dialogue must be easily TTS-friendly.
@@ -726,7 +828,7 @@ Jane: [Line]
         if (!scriptText) throw new Error("Failed to generate script");
 
         // 2. Parallel Generation: Audio & Cover Art
-        if (onProgress) onProgress("Synthesizing audio and designing cover art...");
+        if (onProgress) onProgress("Designing Cover Art...");
 
         const generateCoverArtPromise = async () => {
              const imagePrompt = `
@@ -764,6 +866,8 @@ Jane: [Line]
         const generateAudioPromise = async () => {
              // Clean script text to remove any markdown that might confuse TTS or excessive length
              const safeScript = scriptText.substring(0, 40000); 
+             
+             if(onProgress) onProgress("Recording Audio Voices...");
 
              const ttsResponse = await ai.models.generateContent({
                 model: MODEL_TTS,
@@ -792,6 +896,8 @@ Jane: [Line]
             });
             const base64Audio = ttsResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
             if (!base64Audio) throw new Error("Failed to generate audio bytes");
+            
+            if(onProgress) onProgress("Processing Audio Stream...");
             const pcmBytes = base64ToUint8Array(base64Audio);
             return createWavUrl(pcmBytes, 24000);
         };
@@ -801,7 +907,7 @@ Jane: [Line]
             generateAudioPromise()
         ]);
 
-        if (onProgress) onProgress("Finalizing...");
+        if (onProgress) onProgress("Finalizing Production...");
 
         return {
             title: podcastTitle,

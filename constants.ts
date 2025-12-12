@@ -34,6 +34,13 @@ export const PODCAST_STYLES = [
   { id: 'Study Guide', label: 'Study Guide', desc: 'Educational, exam-prep focus', icon: 'GraduationCap' },
 ];
 
+export const LEARNING_INTENTS = [
+  { id: 'Understand Basics', label: 'Mental Model', desc: 'Connect big ideas. Establish the foundation.' },
+  { id: 'Exam Prep', label: 'Ace the Exam', desc: 'Definitions, dates, and rapid-fire memory checks.' },
+  { id: 'Apply', label: 'Real World', desc: 'Case studies and practical application scenarios.' },
+  { id: 'Teach', label: 'Feynman Mode', desc: 'Simplify complex jargon to teach others.' }
+];
+
 // --- THEMING SYSTEM ---
 
 export type ThemeId = 'neon' | 'obsidian' | 'arctic' | 'quantum' | 'gilded' | 'crimson' | 'cyberpunk' | 'lux' | 'nebula_mind';

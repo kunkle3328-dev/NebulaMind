@@ -57,20 +57,20 @@ const NotebookView: React.FC<Props> = ({ notebook, onUpdate }) => {
   };
 
   const handleShare = () => {
-      // Simulation of sharing
       navigator.clipboard.writeText(`https://nebulamind.ai/notebook/${notebook.id}`);
-      // In a real app, this would use the JobContext notification, but for local comp:
       alert("Notebook link copied to clipboard!");
       setShowShareModal(false);
   };
 
   return (
-    <div className={`min-h-screen bg-transparent ${theme.colors.text} flex flex-col md:flex-row transition-colors duration-700`}>
+    // Root: Fixed 100dvh to prevent body scroll issues on mobile
+    // Changed bg-slate-950 to bg-transparent to let global animations show through
+    <div className={`h-[100dvh] w-full bg-transparent flex flex-col md:flex-row overflow-hidden transition-colors duration-700 ${theme.colors.text}`}>
       
       {/* Sidebar (Desktop) / Bottom Nav (Mobile) */}
       <nav className={`
         fixed bottom-0 left-0 w-full h-16 glass-panel border-t border-white/10 z-[100]
-        md:relative md:h-screen md:border-t-0 md:border-r md:flex md:flex-col
+        md:relative md:h-full md:border-t-0 md:border-r md:flex md:flex-col
         transition-all duration-300 bg-black/80 backdrop-blur-xl md:bg-black/20
         ${isSidebarCollapsed ? 'md:w-20' : 'md:w-72'}
       `}>
@@ -201,10 +201,10 @@ const NotebookView: React.FC<Props> = ({ notebook, onUpdate }) => {
       </nav>
 
       {/* Main Content Area */}
-      <main className={`flex-1 overflow-y-auto h-[calc(100vh-64px)] md:h-screen relative bg-transparent transition-colors duration-700 pb-20 md:pb-0`}>
+      <main className={`flex-1 flex flex-col relative overflow-hidden bg-transparent transition-colors duration-700`}>
         
         {/* Global App Header */}
-        <header className="sticky top-0 z-30 px-4 md:px-8 py-3 md:py-4 flex justify-between md:justify-end items-center backdrop-blur-md border-b border-white/5 bg-black/20 h-16">
+        <header className="flex-none px-4 md:px-8 py-3 md:py-4 flex justify-between md:justify-end items-center backdrop-blur-md border-b border-white/5 bg-black/20 h-16 z-30">
             <Link to="/" className="md:hidden flex items-center gap-2">
                  <NebulaLogo size="sm" />
             </Link>
@@ -225,10 +225,35 @@ const NotebookView: React.FC<Props> = ({ notebook, onUpdate }) => {
             </div>
         </header>
 
-        <div className="max-w-6xl mx-auto p-4 md:p-8 pb-8 relative z-10">
-            {activeTab === 'sources' && <SourcesTab sources={notebook.sources} onAddSource={addSource} onDeleteSource={deleteSource} />}
-            {activeTab === 'chat' && <ChatTab notebook={notebook} />}
-            {activeTab === 'studio' && <StudioTab notebook={notebook} onUpdate={onUpdate} />}
+        {/* Tab Content Wrapper */}
+        <div className="flex-1 relative overflow-hidden">
+            
+            {/* Sources Tab Container (Scrollable) */}
+            {activeTab === 'sources' && (
+                <div className="absolute inset-0 overflow-y-auto overflow-x-hidden p-4 md:p-8 pb-24 md:pb-8">
+                    <div className="max-w-6xl mx-auto">
+                        <SourcesTab sources={notebook.sources} onAddSource={addSource} onDeleteSource={deleteSource} />
+                    </div>
+                </div>
+            )}
+
+            {/* Chat Tab Container (Internal Scroll) */}
+            {activeTab === 'chat' && (
+                <div className="absolute inset-0 pb-20 md:pb-0 p-4 md:p-8">
+                    <div className="max-w-4xl mx-auto h-full">
+                        <ChatTab notebook={notebook} />
+                    </div>
+                </div>
+            )}
+
+            {/* Studio Tab Container (App-like layout for Lab, Scroll for Audio) */}
+            {activeTab === 'studio' && (
+                <div className="absolute inset-0 pb-20 md:pb-0 p-4 md:p-8 overflow-hidden">
+                    <div className="max-w-6xl mx-auto h-full">
+                        <StudioTab notebook={notebook} onUpdate={onUpdate} />
+                    </div>
+                </div>
+            )}
         </div>
 
         {/* Share Modal */}

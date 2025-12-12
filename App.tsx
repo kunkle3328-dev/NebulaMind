@@ -118,7 +118,7 @@ export const ThemeSelector: React.FC = () => {
                 </button>
             </div>
 
-            <div className="px-3 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider border-t border-white/5">Select Theme</div>
+            <div className="px-3 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider border-t border-white/10">Select Theme</div>
             <div className="max-h-[300px] overflow-y-auto">
                 {Object.values(THEMES).map((t) => (
                     <button
@@ -145,116 +145,53 @@ export const ThemeSelector: React.FC = () => {
 const GlobalBackground: React.FC = () => {
     const { theme, animationsEnabled } = useTheme();
 
-    // Use standard arrays for mapping to avoid hook complexity in rendering
-    const snowCount = 50;
-    const starCount = 6; 
-    const emberCount = 20;
+    // Completely memoized particles to prevent re-render flickers/resets
+    const particles = useMemo(() => {
+        const createParticles = (count: number, durationBase: number, durationVar: number) => {
+            return Array.from({ length: count }).map((_, i) => ({
+                id: i,
+                left: Math.random() * 100,
+                top: Math.random() * 100,
+                size: Math.random() * 2 + 1,
+                delay: Math.random() * 5,
+                duration: durationBase + Math.random() * durationVar,
+                opacity: Math.random() * 0.5 + 0.3
+            }));
+        };
 
+        return {
+            snow: createParticles(60, 5, 5),
+            stars: createParticles(20, 3, 3), // Shooting stars
+            staticStars: createParticles(50, 4, 4), // Twinkling stars
+            embers: createParticles(30, 4, 3), // Rising embers
+        };
+    }, []);
+
+    // NOTE: Using z-0 instead of -z-10 ensures the background sits on top of the 
+    // body's default background but behind the app content (which is z-10).
     return (
-        <div className={`fixed inset-0 -z-10 overflow-hidden transition-colors duration-1000 ${theme.colors.background} pointer-events-none`}>
-             <style>{`
-                /* KEYFRAMES */
-                @keyframes twinkle {
-                    0%, 100% { opacity: 0.8; transform: scale(1); }
-                    50% { opacity: 0.3; transform: scale(0.8); }
-                }
-                @keyframes shooting {
-                    0% { transform: translateX(0) translateY(0) rotate(-45deg); opacity: 1; }
-                    100% { transform: translateX(500px) translateY(500px) rotate(-45deg); opacity: 0; }
-                }
-                @keyframes fall {
-                    0% { transform: translateY(-10vh) translateX(0); opacity: 0; }
-                    10% { opacity: 0.8; }
-                    100% { transform: translateY(110vh) translateX(20px); opacity: 0; }
-                }
-                @keyframes rise {
-                    0% { transform: translateY(110vh) scale(0.5); opacity: 0; }
-                    20% { opacity: 0.8; }
-                    100% { transform: translateY(-10vh) scale(1.5); opacity: 0; }
-                }
-                @keyframes scan {
-                    0% { top: -10%; } 100% { top: 110%; }
-                }
-                @keyframes spin-slow {
-                    from { transform: translate(-50%, -50%) rotate(0deg); }
-                    to { transform: translate(-50%, -50%) rotate(360deg); }
-                }
-                @keyframes spin-reverse {
-                    from { transform: translate(-50%, -50%) rotate(360deg); }
-                    to { transform: translate(-50%, -50%) rotate(0deg); }
-                }
-                @keyframes pulse-glow {
-                    0%, 100% { opacity: 0.3; transform: scale(1); }
-                    50% { opacity: 0.6; transform: scale(1.1); }
-                }
-
-                /* UTILITY CLASSES */
-                .star-static {
-                    position: absolute;
-                    background: white;
-                    border-radius: 50%;
-                    animation: twinkle 4s infinite ease-in-out;
-                }
-                
-                .shooting-star {
-                    position: absolute;
-                    width: 100px;
-                    height: 2px;
-                    background: linear-gradient(90deg, rgba(255,255,255,1), transparent);
-                    filter: drop-shadow(0 0 4px white);
-                    opacity: 0;
-                }
-
-                .snow {
-                    position: absolute;
-                    background: white;
-                    border-radius: 50%;
-                }
-
-                .ember {
-                    position: absolute;
-                    background: #f97316;
-                    border-radius: 50%;
-                    box-shadow: 0 0 10px #f97316;
-                }
-
-                .scanline {
-                    position: absolute;
-                    left: 0;
-                    width: 100%;
-                    height: 2px;
-                    background: rgba(6, 182, 212, 0.5);
-                    box-shadow: 0 0 20px rgba(6, 182, 212, 0.8);
-                    animation: scan 4s linear infinite;
-                }
-
-                .atom-ring {
-                    position: absolute;
-                    top: 50%; left: 50%;
-                    border-radius: 50%;
-                    border: 1px solid rgba(139, 92, 246, 0.3);
-                }
-            `}</style>
-
-            {/* --- THEME SPECIFIC LAYERS (Only render if animationsEnabled) --- */}
-            
+        <div className={`fixed inset-0 z-0 overflow-hidden transition-colors duration-1000 ${theme.colors.background} pointer-events-none`}>
+            {/* Theme Layers */}
             {animationsEnabled && (
                 <>
                     {/* 1. NEBULA MIND (Galaxy Stars + Blobs) */}
                     {theme.id === 'nebula_mind' && (
                         <>
-                            {/* Background Blobs */}
                             <div className="absolute top-0 left-0 w-[80vw] h-[80vw] bg-purple-900/30 rounded-full blur-[120px] mix-blend-screen animate-pulse duration-[10s]"></div>
                             <div className="absolute bottom-0 right-0 w-[60vw] h-[60vw] bg-pink-900/20 rounded-full blur-[120px] mix-blend-screen animate-pulse duration-[8s]"></div>
-                            {/* Stars */}
-                            {Array.from({ length: 50 }).map((_, i) => (
-                                <div key={i} className="star-static" style={{
-                                    top: `${Math.random() * 100}%`,
-                                    left: `${Math.random() * 100}%`,
-                                    width: `${Math.random() * 2 + 1}px`,
-                                    height: `${Math.random() * 2 + 1}px`,
-                                    animationDelay: `${Math.random() * 5}s`
-                                }} />
+                            {particles.staticStars.map((s) => (
+                                <div 
+                                    key={s.id} 
+                                    className="star-static" 
+                                    style={{ 
+                                        top: `${s.top}%`, 
+                                        left: `${s.left}%`, 
+                                        width: `${s.size}px`, 
+                                        height: `${s.size}px`, 
+                                        animation: `twinkle ${s.duration}s infinite ease-in-out`,
+                                        animationDelay: `${s.delay}s` 
+                                    }} 
+                                />
                             ))}
                         </>
                     )}
@@ -262,18 +199,23 @@ const GlobalBackground: React.FC = () => {
                     {/* 2. NEON NEBULA (Cyber Grid + Shooting Stars) */}
                     {theme.id === 'neon' && (
                         <>
-                            {/* Grid */}
-                            <div className="absolute inset-0 bg-[linear-gradient(rgba(34,211,238,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(34,211,238,0.1)_1px,transparent_1px)] bg-[size:50px_50px] opacity-20 perspective-[500px]" style={{ transform: 'perspective(500px) rotateX(20deg) scale(1.5)' }}></div>
-                            {/* Glow */}
+                            {/* Moving Grid - Uses class defined in index.html for robustness */}
+                            <div className="grid-background"></div>
+                            
+                            {/* Blue Glow */}
                             <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-cyan-500/10 rounded-full blur-[100px]"></div>
-                            {/* Shooting Stars */}
-                            {Array.from({ length: starCount }).map((_, i) => (
-                                <div key={i} className="shooting-star" style={{
-                                    top: `${Math.random() * 50}%`,
-                                    left: `${Math.random() * 80}%`,
-                                    animation: `shooting ${3 + Math.random() * 3}s linear infinite`,
-                                    animationDelay: `${Math.random() * 10}s`
-                                }} />
+                            
+                            {particles.stars.map((s) => (
+                                <div 
+                                    key={s.id} 
+                                    className="shooting-star" 
+                                    style={{ 
+                                        top: `${s.top}%`, 
+                                        left: `${s.left}%`, 
+                                        animation: `shooting ${s.duration}s linear infinite`, 
+                                        animationDelay: `${s.delay}s` 
+                                    }} 
+                                />
                             ))}
                         </>
                     )}
@@ -282,15 +224,19 @@ const GlobalBackground: React.FC = () => {
                     {theme.id === 'arctic' && (
                         <>
                             <div className="absolute top-0 w-full h-[60vh] bg-gradient-to-b from-teal-900/30 via-sky-900/10 to-transparent blur-3xl opacity-50"></div>
-                            {Array.from({ length: snowCount }).map((_, i) => (
-                                <div key={i} className="snow" style={{
-                                    left: `${Math.random() * 100}%`,
-                                    width: `${Math.random() * 3 + 1}px`,
-                                    height: `${Math.random() * 3 + 1}px`,
-                                    animation: `fall ${5 + Math.random() * 5}s linear infinite`,
-                                    animationDelay: `${Math.random() * 5}s`,
-                                    opacity: Math.random() * 0.7
-                                }} />
+                            {particles.snow.map((s) => (
+                                <div 
+                                    key={s.id} 
+                                    className="snow" 
+                                    style={{ 
+                                        left: `${s.left}%`, 
+                                        width: `${s.size}px`, 
+                                        height: `${s.size}px`, 
+                                        // Use keyframe opacity controls
+                                        animation: `fall ${s.duration}s linear infinite`, 
+                                        animationDelay: `${s.delay}s`
+                                    }} 
+                                />
                             ))}
                         </>
                     )}
@@ -307,15 +253,19 @@ const GlobalBackground: React.FC = () => {
                     {theme.id === 'crimson' && (
                         <>
                             <div className="absolute bottom-0 w-full h-[50vh] bg-gradient-to-t from-red-900/30 to-transparent blur-3xl"></div>
-                            {Array.from({ length: emberCount }).map((_, i) => (
-                                <div key={i} className="ember" style={{
-                                    left: `${Math.random() * 100}%`,
-                                    width: `${Math.random() * 4 + 2}px`,
-                                    height: `${Math.random() * 4 + 2}px`,
-                                    animation: `rise ${3 + Math.random() * 4}s linear infinite`,
-                                    animationDelay: `${Math.random() * 5}s`,
-                                    opacity: Math.random()
-                                }} />
+                            {particles.embers.map((s) => (
+                                <div 
+                                    key={s.id} 
+                                    className="ember" 
+                                    style={{ 
+                                        left: `${s.left}%`, 
+                                        width: `${s.size + 1}px`, 
+                                        height: `${s.size + 1}px`, 
+                                        // Use keyframe opacity controls
+                                        animation: `rise ${s.duration}s linear infinite`, 
+                                        animationDelay: `${s.delay}s` 
+                                    }} 
+                                />
                             ))}
                         </>
                     )}
@@ -323,20 +273,23 @@ const GlobalBackground: React.FC = () => {
                     {/* 6. QUANTUM (Atom Rings) */}
                     {theme.id === 'quantum' && (
                         <>
-                            <div className="atom-ring w-[60vh] h-[60vh] animate-[spin-slow_20s_linear_infinite]"></div>
-                            <div className="atom-ring w-[40vh] h-[40vh] animate-[spin-reverse_15s_linear_infinite] border-fuchsia-500/30"></div>
+                            <div className="atom-ring w-[60vh] h-[60vh]" style={{ animation: 'spin-slow 20s linear infinite' }}></div>
+                            <div className="atom-ring w-[40vh] h-[40vh] border-fuchsia-500/30" style={{ animation: 'spin-reverse 15s linear infinite' }}></div>
                             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[2px] h-[2px] shadow-[0_0_100px_10px_rgba(139,92,246,0.5)]"></div>
                         </>
                     )}
                     
-                    {/* 7. GILDED & OBSIDIAN (Ambient Glow) */}
-                    {(theme.id === 'gilded' || theme.id === 'obsidian' || theme.id === 'lux') && (
+                    {/* 7. GILDED & OBSIDIAN & LUX (Ambient Glow) */}
+                    {['gilded', 'obsidian', 'lux'].includes(theme.id) && (
                         <div className="absolute inset-0 flex items-center justify-center">
-                            <div className={`w-[60vw] h-[60vw] rounded-full blur-[150px] animate-[pulse-glow_8s_ease-in-out_infinite] ${
-                                theme.id === 'gilded' ? 'bg-emerald-900/20' : 
-                                theme.id === 'obsidian' ? 'bg-amber-900/10' : 
-                                'bg-violet-900/20'
-                            }`}></div>
+                            <div 
+                                className={`w-[60vw] h-[60vw] rounded-full blur-[150px] ${
+                                    theme.id === 'gilded' ? 'bg-emerald-900/20' : 
+                                    theme.id === 'obsidian' ? 'bg-amber-900/10' : 
+                                    'bg-violet-900/20'
+                                }`}
+                                style={{ animation: 'pulse-glow 8s ease-in-out infinite' }}
+                            ></div>
                         </div>
                     )}
                 </>
@@ -542,7 +495,8 @@ const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             id: jobId,
             notebookId,
             type,
-            status: 'processing'
+            status: 'processing',
+            progress: 'Starting...'
         };
         setJobs(prev => [...prev, newJob]);
 
@@ -556,9 +510,11 @@ const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                         config?.length, 
                         config?.style, 
                         config?.voices, 
-                        (status) => {
-                            // Could update job progress here in real app
-                        }
+                        (progressMsg) => {
+                            // Update job progress state
+                            setJobs(prev => prev.map(j => j.id === jobId ? { ...j, progress: progressMsg } : j));
+                        },
+                        config?.learningIntent
                     );
                 } else {
                     content = await generateArtifact(type, sources);

@@ -69,6 +69,9 @@ const LiveSession: React.FC<Props> = ({ notebook }) => {
         // 1. Setup Audio Context
         const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
         const ctx = new AudioCtx(); 
+        if (ctx.state === 'suspended') {
+            await ctx.resume();
+        }
         audioContextRef.current = ctx;
 
         // 2. Setup Analyser for Visualizer
@@ -201,7 +204,11 @@ const LiveSession: React.FC<Props> = ({ notebook }) => {
                 },
                 onerror: (err) => {
                     console.error("Session Error", err);
-                    setErrorMsg("Connection unstable or API error.");
+                    setErrorMsg("Connection error. Please try again.");
+                    // Check for network connectivity
+                    if (!navigator.onLine) {
+                        setErrorMsg("No internet connection.");
+                    }
                 }
             }
         });
