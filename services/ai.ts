@@ -416,7 +416,7 @@ export const speakText = async (text: string): Promise<string> => {
 };
 
 export const generateArtifact = async (
-  type: 'flashcards' | 'quiz' | 'infographic' | 'slideDeck' | 'knowledgeGraph',
+  type: 'flashcards' | 'quiz' | 'infographic' | 'slideDeck' | 'executiveBrief',
   sources: Source[]
 ) => {
   const context = formatContext(sources);
@@ -562,43 +562,33 @@ export const generateArtifact = async (
                 }
             };
             break;
-            case 'knowledgeGraph':
-              prompt = `Analyze the context and generate a Knowledge Graph structure.
+            case 'executiveBrief':
+              prompt = `Synthesize the provided context into a high-level Strategic Executive Briefing.
               
               Task:
-              1. Identify the top 15-20 most important entities (concepts, people, events, technologies).
-              2. Create relationships between them.
-              3. For each node, provide a short 1-sentence summary definition.
+              1. Create a structured summary designed for a busy executive or decision-maker.
+              2. Extract the core insights, not just facts.
+              3. Identify actionable takeaways and future implications.
               
               Output must be valid JSON matching the schema.`;
               schema = {
                   type: Type.OBJECT,
                   properties: {
-                      nodes: {
-                          type: Type.ARRAY,
-                          items: {
+                      briefTitle: { type: Type.STRING, description: "A professional title for the brief" },
+                      executiveSummary: { type: Type.STRING, description: "A powerful 2-3 sentence summary of the entire context." },
+                      keyFindings: { 
+                          type: Type.ARRAY, 
+                          items: { 
                               type: Type.OBJECT,
                               properties: {
-                                  id: { type: Type.STRING, description: "Unique ID (e.g., 'artificial_intelligence')" },
-                                  label: { type: Type.STRING, description: "Display name (e.g., 'Artificial Intelligence')" },
-                                  category: { type: Type.STRING, description: "Category (e.g., 'Concept', 'Person', 'Tool')" },
-                                  summary: { type: Type.STRING, description: "Short definition of the concept." }
-                              },
-                              required: ['id', 'label', 'category', 'summary']
-                          }
+                                  heading: { type: Type.STRING },
+                                  point: { type: Type.STRING }
+                              }
+                          },
+                          description: "3-5 critical findings/facts extracted from sources."
                       },
-                      edges: {
-                          type: Type.ARRAY,
-                          items: {
-                              type: Type.OBJECT,
-                              properties: {
-                                  source: { type: Type.STRING, description: "ID of source node" },
-                                  target: { type: Type.STRING, description: "ID of target node" },
-                                  relation: { type: Type.STRING, description: "Label for the relationship (e.g. 'enables', 'includes')" }
-                              },
-                              required: ['source', 'target', 'relation']
-                          }
-                      }
+                      strategicImplications: { type: Type.STRING, description: "What does this mean for the future? Risks? Opportunities?" },
+                      actionableItems: { type: Type.ARRAY, items: { type: Type.STRING }, description: "3-5 recommended next steps or things to watch." }
                   }
               };
               break;

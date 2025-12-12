@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Notebook, Artifact } from '../types';
-import { Mic, Headphones, FileText, HelpCircle, Layout, Presentation, Play, Pause, Loader2, X, Download, Wand2, Activity, Sparkles, ChevronRight, ChevronLeft, Maximize2, Minimize2, Monitor, AlertCircle, Share2, FileCode, GraduationCap, BookOpen, Volume2, ImageIcon, RotateCcw, Shuffle, Network, Check, Flame, Newspaper, Coffee, Users, AlignLeft, Target, Copy, Radio, Info } from 'lucide-react';
+import { Mic, Headphones, FileText, HelpCircle, Layout, Presentation, Play, Pause, Loader2, X, Download, Wand2, Activity, Sparkles, ChevronRight, ChevronLeft, Maximize2, Minimize2, Monitor, AlertCircle, Share2, FileCode, GraduationCap, BookOpen, Volume2, ImageIcon, RotateCcw, Shuffle, Network, Check, Flame, Newspaper, Coffee, Users, AlignLeft, Target, Copy, Radio, Info, ScrollText, CheckCircle2, TrendingUp, AlertTriangle, Lightbulb } from 'lucide-react';
 import LiveSession from './LiveSession';
 import { useTheme, useJobs } from '../App';
 import { VOICES, PODCAST_STYLES, LEARNING_INTENTS } from '../constants';
@@ -357,7 +357,6 @@ const AudioPlayerVisualizer = ({ audioUrl, coverUrl, onJoinLive, title, topic, s
     );
 };
 
-// ... FlashcardPlayer, SlideDeckViewer, KnowledgeGraphViewer (Unchanged, included via reference to existing) ...
 const FlashcardPlayer = ({ content }: { content: any }) => {
     // Re-implemented to ensure context
     const [index, setIndex] = useState(0);
@@ -458,27 +457,99 @@ const SlideDeckViewer = ({ content }: { content: any }) => {
     );
 };
 
-const KnowledgeGraphViewer = ({ content }: { content: any }) => {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
+const ExecutiveBriefViewer = ({ content }: { content: any }) => {
     const { theme } = useTheme();
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas || !content.nodes || !content.edges) return;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        const nodes = content.nodes.map((n: any) => ({ ...n, x: Math.random() * canvas.width, y: Math.random() * canvas.height }));
-        // Simple static render for robustness
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        nodes.forEach((node: any) => {
-            ctx.beginPath();
-            ctx.arc(node.x, node.y, 10, 0, Math.PI * 2);
-            ctx.fillStyle = '#38bdf8';
-            ctx.fill();
-            ctx.fillStyle = '#fff';
-            ctx.fillText(node.label, node.x, node.y + 20);
-        });
-    }, [content]);
-    return <canvas ref={canvasRef} width={800} height={600} className="w-full h-full object-cover bg-slate-950" />;
+    
+    return (
+        <div className="h-full w-full bg-slate-950 overflow-y-auto p-4 md:p-12">
+            <div className="max-w-4xl mx-auto bg-white text-slate-900 shadow-2xl rounded-sm min-h-[1000px] relative overflow-hidden flex flex-col">
+                
+                {/* Confidential Stamp */}
+                <div className="absolute top-12 right-12 border-4 border-red-600/30 text-red-600/30 font-black text-4xl px-4 py-2 uppercase rotate-[-15deg] pointer-events-none z-0">
+                    Confidential
+                </div>
+
+                {/* Header */}
+                <div className={`p-12 pb-8 border-b-4 border-${theme.colors.primary}-600 bg-slate-50 relative z-10`}>
+                    <div className="flex justify-between items-start mb-6">
+                        <div className="flex items-center gap-3 text-slate-500">
+                             <div className={`w-10 h-10 bg-${theme.colors.primary}-600 rounded flex items-center justify-center text-white`}>
+                                 <ScrollText size={24} />
+                             </div>
+                             <div>
+                                 <h1 className="font-bold text-xs uppercase tracking-widest">Executive Briefing</h1>
+                                 <p className="text-[10px] opacity-70">Internal Use Only</p>
+                             </div>
+                        </div>
+                        <div className="text-right">
+                             <p className="text-xs font-mono text-slate-400">{new Date().toLocaleDateString()}</p>
+                        </div>
+                    </div>
+                    <h1 className="text-4xl font-extrabold text-slate-900 leading-tight mb-2">{content.briefTitle}</h1>
+                </div>
+
+                {/* Content */}
+                <div className="p-12 space-y-10 flex-1 relative z-10">
+                    
+                    {/* Executive Summary */}
+                    <section>
+                        <h3 className={`text-sm font-bold text-${theme.colors.primary}-600 uppercase tracking-widest mb-3 flex items-center gap-2`}>
+                            <Info size={16} /> Executive Summary
+                        </h3>
+                        <p className="text-xl leading-relaxed font-serif text-slate-700 italic border-l-4 border-slate-200 pl-6">
+                            "{content.executiveSummary}"
+                        </p>
+                    </section>
+
+                    {/* Key Findings Grid */}
+                    <section>
+                        <h3 className={`text-sm font-bold text-${theme.colors.primary}-600 uppercase tracking-widest mb-4 flex items-center gap-2`}>
+                            <Target size={16} /> Key Findings
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {content.keyFindings?.map((finding: any, i: number) => (
+                                <div key={i} className="bg-slate-50 p-5 rounded-lg border border-slate-200">
+                                    <h4 className="font-bold text-slate-800 mb-2">{finding.heading}</h4>
+                                    <p className="text-sm text-slate-600 leading-relaxed">{finding.point}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+
+                    {/* Strategic Implications */}
+                    <section>
+                         <h3 className={`text-sm font-bold text-${theme.colors.primary}-600 uppercase tracking-widest mb-3 flex items-center gap-2`}>
+                            <TrendingUp size={16} /> Strategic Implications
+                        </h3>
+                         <div className="p-6 bg-slate-900 text-slate-200 rounded-lg shadow-inner">
+                             <p className="leading-relaxed">{content.strategicImplications}</p>
+                         </div>
+                    </section>
+
+                    {/* Action Items */}
+                    <section>
+                        <h3 className={`text-sm font-bold text-${theme.colors.primary}-600 uppercase tracking-widest mb-3 flex items-center gap-2`}>
+                            <CheckCircle2 size={16} /> Recommended Actions
+                        </h3>
+                        <ul className="space-y-3">
+                            {content.actionableItems?.map((item: string, i: number) => (
+                                <li key={i} className="flex items-start gap-3 text-slate-700">
+                                    <div className={`mt-1.5 w-1.5 h-1.5 rounded-full bg-${theme.colors.secondary}-500 shrink-0`}></div>
+                                    <span className="font-medium">{item}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
+
+                </div>
+
+                {/* Footer */}
+                <div className="bg-slate-100 p-6 border-t border-slate-200 text-center text-xs text-slate-400 uppercase tracking-widest">
+                    Generated by Nebula Mind AI • Confidential Document
+                </div>
+            </div>
+        </div>
+    );
 };
 
 const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
@@ -691,9 +762,9 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
                                         <HelpCircle size={20} className="text-green-400 group-hover:scale-110 transition-transform"/>
                                         <span className="text-[10px] text-slate-400">Quiz</span>
                                     </button>
-                                    <button onClick={() => handleGenerateArtifact('knowledgeGraph')} className="p-3 bg-slate-800 hover:bg-slate-700 rounded-lg border border-white/5 flex flex-col items-center gap-2 group" title="Graph">
-                                        <Network size={20} className="text-cyan-400 group-hover:scale-110 transition-transform"/>
-                                        <span className="text-[10px] text-slate-400">Graph</span>
+                                    <button onClick={() => handleGenerateArtifact('executiveBrief')} className="p-3 bg-slate-800 hover:bg-slate-700 rounded-lg border border-white/5 flex flex-col items-center gap-2 group" title="Executive Brief">
+                                        <ScrollText size={20} className="text-cyan-400 group-hover:scale-110 transition-transform"/>
+                                        <span className="text-[10px] text-slate-400">Brief</span>
                                     </button>
                                     <button onClick={() => handleGenerateArtifact('slideDeck')} className="p-3 bg-slate-800 hover:bg-slate-700 rounded-lg border border-white/5 flex flex-col items-center gap-2 group" title="Slides">
                                         <Presentation size={20} className="text-purple-400 group-hover:scale-110 transition-transform"/>
@@ -716,7 +787,7 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
                                         <div className="flex items-center gap-3 mb-1">
                                             {a.type === 'flashcards' && <Copy size={14} className="text-orange-400" />}
                                             {a.type === 'quiz' && <HelpCircle size={14} className="text-green-400" />}
-                                            {a.type === 'knowledgeGraph' && <Network size={14} className="text-cyan-400" />}
+                                            {a.type === 'executiveBrief' && <ScrollText size={14} className="text-cyan-400" />}
                                             {a.type === 'slideDeck' && <Presentation size={14} className="text-purple-400" />}
                                             {a.type === 'infographic' && <ImageIcon size={14} className="text-pink-400" />}
                                             <span className={`text-sm font-medium truncate ${selectedArtifact?.id === a.id ? 'text-white' : 'text-slate-300'}`}>{a.title}</span>
@@ -761,7 +832,7 @@ const StudioTab: React.FC<Props> = ({ notebook, onUpdate }) => {
                                      {selectedArtifact.status === 'completed' && (
                                          <>
                                              {selectedArtifact.type === 'flashcards' && <FlashcardPlayer content={selectedArtifact.content} />}
-                                             {selectedArtifact.type === 'knowledgeGraph' && <KnowledgeGraphViewer content={selectedArtifact.content} />}
+                                             {selectedArtifact.type === 'executiveBrief' && <ExecutiveBriefViewer content={selectedArtifact.content} />}
                                              {selectedArtifact.type === 'slideDeck' && <SlideDeckViewer content={selectedArtifact.content} />}
                                              {selectedArtifact.type === 'infographic' && (
                                                  // Mobile Layout Fix: Removed justify-center/items-center to allow natural scrolling of tall images

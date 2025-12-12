@@ -18,7 +18,7 @@ interface ThemeContextType {
 }
 
 export const ThemeContext = createContext<ThemeContextType>({
-  theme: THEMES.neon,
+  theme: THEMES.midnight_azure,
   setThemeId: () => {},
   animationsEnabled: true,
   setAnimationsEnabled: () => {}
@@ -164,6 +164,8 @@ const GlobalBackground: React.FC = () => {
             stars: createParticles(20, 3, 3), // Shooting stars
             staticStars: createParticles(50, 4, 4), // Twinkling stars
             embers: createParticles(30, 4, 3), // Rising embers
+            bubbles: createParticles(40, 6, 4), // Sharp bubbles for Lux
+            lasers: createParticles(15, 3, 2), // Lasers for Midnight Azure
         };
     }, []);
 
@@ -199,12 +201,8 @@ const GlobalBackground: React.FC = () => {
                     {/* 2. NEON NEBULA (Cyber Grid + Shooting Stars) */}
                     {theme.id === 'neon' && (
                         <>
-                            {/* Moving Grid - Uses class defined in index.html for robustness */}
                             <div className="grid-background"></div>
-                            
-                            {/* Blue Glow */}
                             <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-cyan-500/10 rounded-full blur-[100px]"></div>
-                            
                             {particles.stars.map((s) => (
                                 <div 
                                     key={s.id} 
@@ -232,7 +230,6 @@ const GlobalBackground: React.FC = () => {
                                         left: `${s.left}%`, 
                                         width: `${s.size}px`, 
                                         height: `${s.size}px`, 
-                                        // Use keyframe opacity controls
                                         animation: `fall ${s.duration}s linear infinite`, 
                                         animationDelay: `${s.delay}s`
                                     }} 
@@ -261,7 +258,6 @@ const GlobalBackground: React.FC = () => {
                                         left: `${s.left}%`, 
                                         width: `${s.size + 1}px`, 
                                         height: `${s.size + 1}px`, 
-                                        // Use keyframe opacity controls
                                         animation: `rise ${s.duration}s linear infinite`, 
                                         animationDelay: `${s.delay}s` 
                                     }} 
@@ -279,17 +275,83 @@ const GlobalBackground: React.FC = () => {
                         </>
                     )}
                     
-                    {/* 7. GILDED & OBSIDIAN & LUX (Ambient Glow) */}
-                    {['gilded', 'obsidian', 'lux'].includes(theme.id) && (
+                    {/* 7. OBSIDIAN GOLD (Rising Gold Dust) */}
+                    {theme.id === 'obsidian' && (
+                        <>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="w-[60vw] h-[60vw] rounded-full blur-[150px] bg-amber-900/10" style={{ animation: 'pulse-glow 8s ease-in-out infinite' }}></div>
+                            </div>
+                            {particles.embers.map((s) => (
+                                <div 
+                                    key={s.id} 
+                                    className="rounded-full bg-amber-400/50 blur-[1px]" 
+                                    style={{ 
+                                        position: 'absolute',
+                                        left: `${s.left}%`, 
+                                        width: `${s.size}px`, 
+                                        height: `${s.size}px`, 
+                                        opacity: 0, /* Start hidden */
+                                        animation: `rise ${s.duration * 1.5}s linear infinite`, 
+                                        animationDelay: `${s.delay}s` 
+                                    }} 
+                                />
+                            ))}
+                        </>
+                    )}
+
+                    {/* 8. LUX MIDNIGHT (FIXED: Sharp Champagne Bubbles) */}
+                    {theme.id === 'lux' && (
+                        <>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="w-[60vw] h-[60vw] rounded-full blur-[150px] bg-violet-900/20" style={{ animation: 'pulse-glow 8s ease-in-out infinite' }}></div>
+                            </div>
+                            {/* Sharper, small bubbles instead of large blurry bokeh */}
+                            {particles.bubbles.map((s, i) => (
+                                <div 
+                                    key={s.id} 
+                                    className={`rounded-full border border-white/20 ${i % 2 === 0 ? 'bg-violet-400/20' : 'bg-amber-300/20'}`}
+                                    style={{ 
+                                        position: 'absolute',
+                                        left: `${s.left}%`, 
+                                        width: `${s.size * 2 + 2}px`, 
+                                        height: `${s.size * 2 + 2}px`, 
+                                        opacity: 0, /* Start hidden */
+                                        animation: `bubble-rise ${s.duration * 1.5}s ease-in-out infinite`, 
+                                        animationDelay: `${s.delay}s`,
+                                        boxShadow: `0 0 5px ${i % 2 === 0 ? 'rgba(167, 139, 250, 0.3)' : 'rgba(252, 211, 77, 0.3)'}`
+                                    }} 
+                                />
+                            ))}
+                        </>
+                    )}
+
+                    {/* 9. MIDNIGHT AZURE (NEW: Vertical Lasers + Plasma Fog) */}
+                    {theme.id === 'midnight_azure' && (
+                        <>
+                            {/* Background Fog */}
+                            <div className="plasma-fog w-[50vw] h-[50vw] top-1/4 left-1/4"></div>
+                            <div className="plasma-fog w-[40vw] h-[40vw] bottom-1/4 right-1/4" style={{ animationDelay: '2s' }}></div>
+                            
+                            {/* Falling Blue Lasers */}
+                            {particles.lasers.map((s, i) => (
+                                <div 
+                                    key={s.id} 
+                                    className="laser"
+                                    style={{ 
+                                        left: `${s.left}%`, 
+                                        opacity: 0,
+                                        animation: `laser-beam ${s.duration}s ease-in infinite`, 
+                                        animationDelay: `${s.delay}s` 
+                                    }} 
+                                />
+                            ))}
+                        </>
+                    )}
+
+                    {/* 10. GILDED (Just Glow) */}
+                    {theme.id === 'gilded' && (
                         <div className="absolute inset-0 flex items-center justify-center">
-                            <div 
-                                className={`w-[60vw] h-[60vw] rounded-full blur-[150px] ${
-                                    theme.id === 'gilded' ? 'bg-emerald-900/20' : 
-                                    theme.id === 'obsidian' ? 'bg-amber-900/10' : 
-                                    'bg-violet-900/20'
-                                }`}
-                                style={{ animation: 'pulse-glow 8s ease-in-out infinite' }}
-                            ></div>
+                            <div className="w-[60vw] h-[60vw] rounded-full blur-[150px] bg-emerald-900/20" style={{ animation: 'pulse-glow 8s ease-in-out infinite' }}></div>
                         </div>
                     )}
                 </>
@@ -482,7 +544,7 @@ const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             const placeholder: Artifact = {
                 id: placeholderId,
                 type,
-                title: `${type === 'audioOverview' ? 'Podcast' : type} (Generating...)`,
+                title: `${type === 'audioOverview' ? 'Podcast' : type === 'executiveBrief' ? 'Executive Brief' : type} (Generating...)`,
                 content: {},
                 createdAt: Date.now(),
                 status: 'generating'
@@ -526,7 +588,7 @@ const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                     if (idx !== -1) {
                         nb.artifacts[idx] = {
                             ...nb.artifacts[idx],
-                            title: `${type === 'audioOverview' ? content.title || 'Podcast' : type} - ${new Date().toLocaleTimeString()}`,
+                            title: `${type === 'audioOverview' ? content.title || 'Podcast' : type === 'executiveBrief' ? 'Executive Brief' : type} - ${new Date().toLocaleTimeString()}`,
                             content,
                             status: 'completed'
                         };
@@ -535,7 +597,7 @@ const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 }
 
                 setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'completed' } : j));
-                addNotification("Generation Complete", `Your ${type} is ready to view.`, 'success');
+                addNotification("Generation Complete", `Your ${type === 'executiveBrief' ? 'Brief' : type} is ready to view.`, 'success');
 
             } catch (error) {
                 console.error(error);
@@ -576,7 +638,7 @@ const JobProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 const App: React.FC = () => {
   const [showSplash, setShowSplash] = useState(true);
-  const [activeThemeId, setActiveThemeId] = useState<ThemeId>('neon');
+  const [activeThemeId, setActiveThemeId] = useState<ThemeId>('midnight_azure'); // Set new default theme
   const [animationsEnabled, setAnimationsEnabled] = useState(true);
 
   if (showSplash) {

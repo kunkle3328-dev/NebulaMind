@@ -17,7 +17,7 @@ export interface Note {
 
 export interface Artifact {
   id: string;
-  type: 'flashcards' | 'quiz' | 'infographic' | 'slideDeck' | 'audioOverview' | 'knowledgeGraph';
+  type: 'flashcards' | 'quiz' | 'infographic' | 'slideDeck' | 'audioOverview' | 'executiveBrief';
   title: string;
   content: any; // Structured JSON or text
   createdAt: number;

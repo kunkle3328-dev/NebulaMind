@@ -43,7 +43,7 @@ export const LEARNING_INTENTS = [
 
 // --- THEMING SYSTEM ---
 
-export type ThemeId = 'neon' | 'obsidian' | 'arctic' | 'quantum' | 'gilded' | 'crimson' | 'cyberpunk' | 'lux' | 'nebula_mind';
+export type ThemeId = 'neon' | 'obsidian' | 'arctic' | 'quantum' | 'gilded' | 'crimson' | 'cyberpunk' | 'lux' | 'midnight_azure' | 'nebula_mind';
 
 export interface Theme {
   id: ThemeId;
@@ -59,6 +59,18 @@ export interface Theme {
 }
 
 export const THEMES: Record<ThemeId, Theme> = {
+  midnight_azure: {
+    id: 'midnight_azure',
+    name: 'Midnight Azure',
+    colors: {
+      primary: 'blue', // Royal Blue
+      secondary: 'indigo',
+      accent: 'cyan',
+      background: 'bg-[#000205]', // Deepest Midnight Black
+      panel: 'bg-[#0f172a]/40 shadow-[0_0_25px_rgba(29,78,216,0.15)] border-blue-600/30 backdrop-blur-xl', // High-end frosted glass with blue glow
+      text: 'text-blue-50'
+    }
+  },
   nebula_mind: {
     id: 'nebula_mind',
     name: 'Nebula Mind',
