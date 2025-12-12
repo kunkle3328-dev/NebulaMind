@@ -191,6 +191,87 @@ export const fetchWebsiteContent = async (url: string): Promise<string> => {
     throw new Error("Could not fetch website content. The site may be blocking automated access or forcing CORS.");
 };
 
+export const runNebulaScout = async (topic: string, onProgress: (msg: string) => void): Promise<Source[]> => {
+    try {
+        onProgress("Initializing Scout Agent...");
+        
+        // 1. Identify targets using Google Search Tool
+        onProgress(`Scouting sector: "${topic}"...`);
+        
+        // NOTE: We cannot use responseMimeType: 'application/json' with googleSearch tool.
+        // We must rely on the groundingMetadata to get the URLs.
+        const searchPrompt = `
+            Find 3 authoritative, high-quality sources about: "${topic}".
+            Summarize them briefly.
+        `;
+
+        const scoutResponse = await ai.models.generateContent({
+            model: MODEL_TEXT,
+            contents: searchPrompt,
+            config: {
+                tools: [{ googleSearch: {} }],
+                // Removed conflicting JSON schema/mimetype to fix HTTP 400 error
+            }
+        });
+
+        // Extract URLs from Grounding Metadata
+        const chunks = scoutResponse.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+        
+        // Map to unique targets
+        const uniqueUrls = new Set();
+        const targets: {url: string, title: string}[] = [];
+
+        for (const chunk of chunks) {
+            if (chunk.web?.uri && !uniqueUrls.has(chunk.web.uri)) {
+                uniqueUrls.add(chunk.web.uri);
+                targets.push({
+                    url: chunk.web.uri,
+                    title: chunk.web.title || "Scouted Source"
+                });
+            }
+        }
+        
+        // Limit to top 3 to match original intent
+        const finalTargets = targets.slice(0, 3);
+
+        if (finalTargets.length === 0) {
+            throw new Error("Scout failed to identify valid targets (No search results returned).");
+        }
+
+        // 2. Ingest Content
+        const newSources: Source[] = [];
+        
+        for (const target of finalTargets) {
+            onProgress(`Acquiring target: ${target.title}...`);
+            try {
+                const content = await fetchWebsiteContent(target.url);
+                if (content.length > 500) { // basic validation
+                    newSources.push({
+                        id: crypto.randomUUID(),
+                        type: 'website',
+                        title: target.title,
+                        content: content,
+                        createdAt: Date.now(),
+                        metadata: { originalUrl: target.url, scouted: true }
+                    });
+                }
+            } catch (e) {
+                console.warn(`Failed to ingest ${target.url}`, e);
+            }
+        }
+
+        if (newSources.length === 0) {
+            throw new Error("Scout identified targets but could not extract content (CORS/Protection).");
+        }
+
+        return newSources;
+
+    } catch (error: any) {
+        console.error("Nebula Scout Error:", error);
+        throw new Error(error.message || "Scout mission aborted.");
+    }
+};
+
 // ---------------------------------------------------------
 // RAG & GENERATION
 // ---------------------------------------------------------
@@ -740,3 +821,31 @@ export const getLiveClient = () => {
 };
 
 export const LIVE_MODEL_NAME = MODEL_LIVE;
+
+export const getDebateSystemInstruction = (
+    context: string, 
+    role: 'Moderator' | 'Pro' | 'Con', 
+    userStance: string
+) => {
+    return `
+    You are engaging in a dynamic Audio Debate Arena.
+    
+    YOUR ROLE: You represent the Nebula Mind AI Podcast Team (Hosts Joe and Jane).
+    - Joe: Analytical, skeptical, structured.
+    - Jane: Creative, big-picture, enthusiastic.
+    
+    THE SCENARIO: The user has entered the Debate Arena as a THIRD HOST / GUEST.
+    User's Role: ${role}
+    User's Stance: ${userStance}
+    
+    CONTEXT MATERIAL:
+    ${context}
+    
+    INSTRUCTIONS:
+    1. Acknowledge the user's role immediately. "Welcome to the arena! I see you're taking the [Stance] side."
+    2. If the user is the Moderator, defer to them but provide spicy commentary.
+    3. If the user is Pro/Con, challenge their points respectfully but firmly.
+    4. Speak naturally. Do not output "Joe:" or "Jane:" text prefixes in this live audio mode, just embody the spirit of the debate team.
+    5. Keep it high energy, intellectual, and "fiery" but safe.
+    `;
+};

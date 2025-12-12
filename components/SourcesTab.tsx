@@ -1,8 +1,8 @@
 
 import React, { useState, useRef } from 'react';
     import { Source } from '../types';
-    import { fetchWebsiteContent, processFileWithGemini } from '../services/ai';
-    import { FileText, Link as LinkIcon, Youtube, Type, Upload, Trash2, Globe, FileAudio, Image, PlusCircle, X, Loader2, Plus } from 'lucide-react';
+    import { fetchWebsiteContent, processFileWithGemini, runNebulaScout } from '../services/ai';
+    import { FileText, Link as LinkIcon, Youtube, Type, Upload, Trash2, Globe, FileAudio, Image, PlusCircle, X, Loader2, Plus, Radar, Search } from 'lucide-react';
     import { useNavigate } from 'react-router-dom';
     import { useTheme } from '../App';
     
@@ -69,7 +69,7 @@ import React, { useState, useRef } from 'react';
     
     const SourcesTab: React.FC<Props> = ({ sources, onAddSource, onDeleteSource }) => {
       // Modal State
-      const [activeModal, setActiveModal] = useState<'text' | 'website' | 'youtube' | 'file' | null>(null);
+      const [activeModal, setActiveModal] = useState<'text' | 'website' | 'youtube' | 'file' | 'scout' | null>(null);
       const [fileType, setFileType] = useState<'pdf' | 'audio' | 'image' | null>(null);
       
       // Input State
@@ -77,6 +77,7 @@ import React, { useState, useRef } from 'react';
       const [titleValue, setTitleValue] = useState('');
       const [selectedFile, setSelectedFile] = useState<File | null>(null);
       const [isProcessing, setIsProcessing] = useState(false);
+      const [statusMessage, setStatusMessage] = useState('');
       const [error, setError] = useState<string | null>(null);
 
       const fileInputRef = useRef<HTMLInputElement>(null);
@@ -91,6 +92,7 @@ import React, { useState, useRef } from 'react';
           setSelectedFile(null);
           setError(null);
           setIsProcessing(false);
+          setStatusMessage('');
       };
 
       const handleAddSource = async () => {
@@ -103,7 +105,13 @@ import React, { useState, useRef } from 'react';
             let type: Source['type'] = 'copiedText';
             let metadata: any = {};
 
-            if (activeModal === 'text') {
+            if (activeModal === 'scout') {
+                const newSources = await runNebulaScout(inputValue, setStatusMessage);
+                newSources.forEach(s => onAddSource(s));
+                resetModal();
+                return;
+            }
+            else if (activeModal === 'text') {
                 content = inputValue;
                 type = 'copiedText';
                 if (!finalTitle) finalTitle = "Pasted Text " + new Date().toLocaleTimeString();
@@ -215,13 +223,14 @@ import React, { useState, useRef } from 'react';
                  </button>
                  
                  <button 
-                    onClick={() => setActiveModal('youtube')}
-                    className={`p-4 md:p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-${theme.colors.primary}-500/30`}
+                    onClick={() => setActiveModal('scout')}
+                    className={`p-4 md:p-5 glass-panel rounded-2xl flex flex-col items-center gap-3 hover:bg-slate-800 hover:scale-[1.02] transition-all group border-transparent hover:border-${theme.colors.primary}-500/30 relative overflow-hidden`}
                  >
-                     <div className="p-3 bg-red-500/10 rounded-full group-hover:bg-red-500/20 transition-colors">
-                        <Youtube className="text-red-500" size={24} />
+                     <div className={`absolute top-0 right-0 px-2 py-0.5 bg-${theme.colors.secondary}-500/80 text-white text-[9px] font-bold rounded-bl-lg`}>NEW</div>
+                     <div className={`p-3 bg-${theme.colors.accent}-500/10 rounded-full group-hover:bg-${theme.colors.accent}-500/20 transition-colors`}>
+                        <Radar className={`text-${theme.colors.accent}-400`} size={24} />
                      </div>
-                     <span className="text-xs md:text-sm font-medium text-slate-200">YouTube</span>
+                     <span className="text-xs md:text-sm font-medium text-slate-200 text-center leading-tight">Nebula Scout</span>
                  </button>
                  
                  <button 
@@ -288,112 +297,154 @@ import React, { useState, useRef } from 'react';
                         {activeModal === 'file' && fileType === 'pdf' && <FileText className="text-orange-400" />}
                         {activeModal === 'file' && fileType === 'audio' && <FileAudio className="text-purple-400" />}
                         {activeModal === 'file' && fileType === 'image' && <Image className="text-green-400" />}
+                        {activeModal === 'scout' && <Radar className={`text-${theme.colors.accent}-400`} />}
                         
                         {activeModal === 'text' && 'Paste Text'}
                         {activeModal === 'website' && 'Import Website'}
                         {activeModal === 'youtube' && 'Import YouTube'}
                         {activeModal === 'file' && `Upload ${fileType?.toUpperCase()}`}
+                        {activeModal === 'scout' && 'Nebula Scout'}
                     </h3>
 
-                    <div className="space-y-4 overflow-y-auto pr-1">
-                        <input 
-                            className={`w-full bg-slate-900 border border-slate-700 rounded-xl p-4 focus:ring-2 focus:ring-${theme.colors.primary}-500 outline-none transition-all`}
-                            placeholder="Title (Optional)"
-                            value={titleValue}
-                            onChange={(e) => setTitleValue(e.target.value)}
-                            disabled={isProcessing}
-                        />
-
-                        {activeModal === 'text' && (
-                            <textarea 
-                                className={`w-full bg-slate-900 border border-slate-700 rounded-xl p-4 font-mono text-sm focus:ring-2 focus:ring-${theme.colors.primary}-500 outline-none resize-none min-h-[200px]`}
-                                placeholder="Paste your content here..."
-                                value={inputValue}
-                                onChange={(e) => setInputValue(e.target.value)}
-                                disabled={isProcessing}
-                            ></textarea>
-                        )}
-
-                        {(activeModal === 'website' || activeModal === 'youtube') && (
-                            <input 
-                                className={`w-full bg-slate-900 border border-slate-700 rounded-xl p-4 focus:ring-2 focus:ring-${theme.colors.primary}-500 outline-none transition-all font-mono text-sm`}
-                                placeholder={activeModal === 'website' ? "https://example.com/article" : "https://youtube.com/watch?v=..."}
-                                value={inputValue}
-                                onChange={(e) => setInputValue(e.target.value)}
-                                disabled={isProcessing}
-                            />
-                        )}
-
-                        {activeModal === 'file' && (
-                            <div 
-                                className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center cursor-pointer transition-all ${selectedFile ? `border-${theme.colors.primary}-500/50 bg-${theme.colors.primary}-500/5` : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'}`}
-                                onClick={() => !isProcessing && fileInputRef.current?.click()}
-                            >
-                                <input 
-                                    type="file" 
-                                    ref={fileInputRef} 
-                                    className="hidden" 
-                                    accept={
-                                        fileType === 'pdf' ? "application/pdf" : 
-                                        fileType === 'audio' ? "audio/*" : 
-                                        "image/*"
-                                    }
-                                    onChange={handleFileSelect}
-                                    disabled={isProcessing}
-                                />
-                                {selectedFile ? (
-                                    <>
-                                        <div className={`w-12 h-12 bg-${theme.colors.primary}-500/20 text-${theme.colors.primary}-400 rounded-full flex items-center justify-center mb-3`}>
-                                            <Upload size={24} />
-                                        </div>
-                                        <p className="font-medium text-slate-200">{selectedFile.name}</p>
-                                        <p className="text-xs text-slate-500 mt-1">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
-                                    </>
-                                ) : (
-                                    <>
-                                        <div className="w-12 h-12 bg-slate-800 text-slate-400 rounded-full flex items-center justify-center mb-3">
-                                            <Upload size={24} />
-                                        </div>
-                                        <p className="font-medium text-slate-400">Click to Upload {fileType?.toUpperCase()}</p>
-                                    </>
-                                )}
-                            </div>
-                        )}
-
-                        {error && (
-                            <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm rounded-lg">
-                                {error}
-                            </div>
-                        )}
-                        
-                        {isProcessing && (
-                            <div className={`p-4 bg-${theme.colors.primary}-500/5 border border-${theme.colors.primary}-500/20 rounded-lg flex items-center gap-3`}>
-                                <Loader2 className={`animate-spin text-${theme.colors.primary}-400`} size={20} />
-                                <div className="text-sm">
-                                    <p className={`text-${theme.colors.primary}-200 font-medium`}>Processing Source...</p>
-                                    <p className={`text-${theme.colors.primary}-500/70 text-xs`}>This may take a few seconds.</p>
+                    {activeModal === 'scout' ? (
+                        <div className="space-y-6">
+                            <div className={`p-6 bg-${theme.colors.primary}-900/10 border border-${theme.colors.primary}-500/20 rounded-xl`}>
+                                <p className="text-sm text-slate-300 mb-4 leading-relaxed">
+                                    Nebula Scout is an <strong>autonomous research agent</strong>. Give it a topic, and it will search the web, identify high-quality sources, and ingest them into your notebook automatically.
+                                </p>
+                                <div className="flex gap-2">
+                                    <input 
+                                        className={`flex-1 bg-slate-900 border border-slate-700 rounded-xl p-4 focus:ring-2 focus:ring-${theme.colors.primary}-500 outline-none text-white placeholder-slate-500`}
+                                        placeholder="e.g. The future of solid state batteries"
+                                        value={inputValue}
+                                        onChange={(e) => setInputValue(e.target.value)}
+                                        disabled={isProcessing}
+                                        onKeyDown={(e) => e.key === 'Enter' && !isProcessing && handleAddSource()}
+                                    />
+                                    <button 
+                                        onClick={handleAddSource}
+                                        disabled={isProcessing || !inputValue.trim()}
+                                        className={`px-6 rounded-xl font-bold flex items-center justify-center transition-all ${isProcessing ? 'bg-slate-800 text-slate-500' : `bg-${theme.colors.accent}-600 hover:bg-${theme.colors.accent}-500 text-white shadow-lg`}`}
+                                    >
+                                        {isProcessing ? <Loader2 className="animate-spin" /> : <Search />}
+                                    </button>
                                 </div>
                             </div>
-                        )}
-
-                        <div className="flex justify-end gap-3 mt-6">
-                            <button 
-                                onClick={resetModal} 
-                                className="px-5 py-2.5 hover:bg-white/10 rounded-xl transition-colors font-medium text-slate-300"
-                                disabled={isProcessing}
-                            >
-                                Cancel
-                            </button>
-                            <button 
-                                onClick={handleAddSource}
-                                disabled={isProcessing || (!inputValue && !selectedFile)}
-                                className={`px-8 py-2.5 bg-gradient-to-r from-${theme.colors.primary}-600 to-${theme.colors.secondary}-600 rounded-xl font-bold hover:shadow-lg hover:shadow-${theme.colors.primary}-500/20 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:hover:scale-100 flex items-center gap-2`}
-                            >
-                                {isProcessing ? <Loader2 className="animate-spin" size={16} /> : <PlusCircle size={18} />}
-                                Add Source
-                            </button>
+                            
+                            {isProcessing && (
+                                <div className="flex flex-col items-center justify-center py-8 space-y-4">
+                                    <div className={`relative w-16 h-16 flex items-center justify-center`}>
+                                        <div className={`absolute inset-0 rounded-full border-2 border-${theme.colors.accent}-500/30 animate-ping`}></div>
+                                        <div className={`absolute inset-2 rounded-full border-2 border-${theme.colors.accent}-500/50 animate-spin`}></div>
+                                        <Radar className={`text-${theme.colors.accent}-400 relative z-10`} size={24} />
+                                    </div>
+                                    <p className={`text-${theme.colors.accent}-300 font-mono text-sm animate-pulse`}>
+                                        {statusMessage || "Initializing Scout..."}
+                                    </p>
+                                </div>
+                            )}
                         </div>
-                    </div>
+                    ) : (
+                        <div className="space-y-4 overflow-y-auto pr-1">
+                            <input 
+                                className={`w-full bg-slate-900 border border-slate-700 rounded-xl p-4 focus:ring-2 focus:ring-${theme.colors.primary}-500 outline-none transition-all`}
+                                placeholder="Title (Optional)"
+                                value={titleValue}
+                                onChange={(e) => setTitleValue(e.target.value)}
+                                disabled={isProcessing}
+                            />
+
+                            {activeModal === 'text' && (
+                                <textarea 
+                                    className={`w-full bg-slate-900 border border-slate-700 rounded-xl p-4 font-mono text-sm focus:ring-2 focus:ring-${theme.colors.primary}-500 outline-none resize-none min-h-[200px]`}
+                                    placeholder="Paste your content here..."
+                                    value={inputValue}
+                                    onChange={(e) => setInputValue(e.target.value)}
+                                    disabled={isProcessing}
+                                ></textarea>
+                            )}
+
+                            {(activeModal === 'website' || activeModal === 'youtube') && (
+                                <input 
+                                    className={`w-full bg-slate-900 border border-slate-700 rounded-xl p-4 focus:ring-2 focus:ring-${theme.colors.primary}-500 outline-none transition-all font-mono text-sm`}
+                                    placeholder={activeModal === 'website' ? "https://example.com/article" : "https://youtube.com/watch?v=..."}
+                                    value={inputValue}
+                                    onChange={(e) => setInputValue(e.target.value)}
+                                    disabled={isProcessing}
+                                />
+                            )}
+
+                            {activeModal === 'file' && (
+                                <div 
+                                    className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center cursor-pointer transition-all ${selectedFile ? `border-${theme.colors.primary}-500/50 bg-${theme.colors.primary}-500/5` : 'border-slate-700 hover:border-slate-500 hover:bg-slate-800'}`}
+                                    onClick={() => !isProcessing && fileInputRef.current?.click()}
+                                >
+                                    <input 
+                                        type="file" 
+                                        ref={fileInputRef} 
+                                        className="hidden" 
+                                        accept={
+                                            fileType === 'pdf' ? "application/pdf" : 
+                                            fileType === 'audio' ? "audio/*" : 
+                                            "image/*"
+                                        }
+                                        onChange={handleFileSelect}
+                                        disabled={isProcessing}
+                                    />
+                                    {selectedFile ? (
+                                        <>
+                                            <div className={`w-12 h-12 bg-${theme.colors.primary}-500/20 text-${theme.colors.primary}-400 rounded-full flex items-center justify-center mb-3`}>
+                                                <Upload size={24} />
+                                            </div>
+                                            <p className="font-medium text-slate-200">{selectedFile.name}</p>
+                                            <p className="text-xs text-slate-500 mt-1">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="w-12 h-12 bg-slate-800 text-slate-400 rounded-full flex items-center justify-center mb-3">
+                                                <Upload size={24} />
+                                            </div>
+                                            <p className="font-medium text-slate-400">Click to Upload {fileType?.toUpperCase()}</p>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+
+                            {error && (
+                                <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm rounded-lg">
+                                    {error}
+                                </div>
+                            )}
+                            
+                            {isProcessing && (
+                                <div className={`p-4 bg-${theme.colors.primary}-500/5 border border-${theme.colors.primary}-500/20 rounded-lg flex items-center gap-3`}>
+                                    <Loader2 className={`animate-spin text-${theme.colors.primary}-400`} size={20} />
+                                    <div className="text-sm">
+                                        <p className={`text-${theme.colors.primary}-200 font-medium`}>Processing Source...</p>
+                                        <p className={`text-${theme.colors.primary}-500/70 text-xs`}>This may take a few seconds.</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex justify-end gap-3 mt-6">
+                                <button 
+                                    onClick={resetModal} 
+                                    className="px-5 py-2.5 hover:bg-white/10 rounded-xl transition-colors font-medium text-slate-300"
+                                    disabled={isProcessing}
+                                >
+                                    Cancel
+                                </button>
+                                <button 
+                                    onClick={handleAddSource}
+                                    disabled={isProcessing || (!inputValue && !selectedFile)}
+                                    className={`px-8 py-2.5 bg-gradient-to-r from-${theme.colors.primary}-600 to-${theme.colors.secondary}-600 rounded-xl font-bold hover:shadow-lg hover:shadow-${theme.colors.primary}-500/20 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:hover:scale-100 flex items-center gap-2`}
+                                >
+                                    {isProcessing ? <Loader2 className="animate-spin" size={16} /> : <PlusCircle size={18} />}
+                                    Add Source
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
           )}

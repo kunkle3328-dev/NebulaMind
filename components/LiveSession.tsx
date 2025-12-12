@@ -1,11 +1,11 @@
 
-
 import React, { useEffect, useRef, useState } from 'react';
 import { Notebook } from '../types';
-import { getLiveClient, LIVE_MODEL_NAME } from '../services/ai';
+import { getLiveClient, LIVE_MODEL_NAME, getDebateSystemInstruction } from '../services/ai';
 import { Modality } from '@google/genai';
-import { Mic, MicOff, PhoneOff, Activity } from 'lucide-react';
+import { Mic, MicOff, PhoneOff, Activity, Swords, Users, Shield } from 'lucide-react';
 import { base64ToUint8Array, arrayBufferToBase64, convertFloat32ToInt16 } from '../services/audioUtils';
+import { useTheme } from '../App';
 
 interface Props {
   notebook: Notebook;
@@ -38,8 +38,14 @@ function downsampleBuffer(buffer: Float32Array, inputRate: number, outputRate: n
 const LiveSession: React.FC<Props> = ({ notebook }) => {
   const [connected, setConnected] = useState(false);
   const [muted, setMuted] = useState(false);
-  const [status, setStatus] = useState<'idle' | 'connecting' | 'live' | 'error'>('idle');
+  const [status, setStatus] = useState<'setup' | 'connecting' | 'live' | 'error'>('setup');
   const [errorMsg, setErrorMsg] = useState('');
+  
+  // Arena Configuration
+  const [sessionMode, setSessionMode] = useState<'Standard' | 'Arena'>('Standard');
+  const [debateRole, setDebateRole] = useState<'Moderator' | 'Pro' | 'Con'>('Pro');
+
+  const { theme } = useTheme();
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const inputSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
@@ -61,8 +67,6 @@ const LiveSession: React.FC<Props> = ({ notebook }) => {
         const client = getLiveClient();
         
         // 1. Setup Audio Context
-        // Do NOT force sampleRate here; let the browser decide the hardware rate to avoid glitches.
-        // We will resample manually.
         const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
         const ctx = new AudioCtx(); 
         audioContextRef.current = ctx;
@@ -79,15 +83,11 @@ const LiveSession: React.FC<Props> = ({ notebook }) => {
         const sourceContext = notebook.sources.map(s => `Title: ${s.title}\nContent: ${s.content.substring(0, 1000)}...`).join('\n\n');
         const TARGET_RATE = 24000; // Gemini Live preferred rate
         
-        const sessionPromise = client.connect({
-            model: LIVE_MODEL_NAME,
-            config: {
-                responseModalities: [Modality.AUDIO],
-                tools: [{ googleSearch: {} }],
-                speechConfig: {
-                    voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } } 
-                },
-                systemInstruction: `You are a podcast host (Host A). You are knowledgeable, enthusiastic, and articulate. 
+        let sysInstruction = "";
+        if (sessionMode === 'Arena') {
+            sysInstruction = getDebateSystemInstruction(sourceContext, debateRole, debateRole === 'Pro' ? 'Supporting the Topic' : debateRole === 'Con' ? 'Opposing the Topic' : 'Neutral');
+        } else {
+            sysInstruction = `You are a podcast host (Host A). You are knowledgeable, enthusiastic, and articulate. 
                 You are discussing the following material with the user (who is acting as a guest or co-host).
                 
                 MATERIAL:
@@ -95,8 +95,19 @@ const LiveSession: React.FC<Props> = ({ notebook }) => {
 
                 IMPORTANT INSTRUCTIONS:
                 1. Use the provided MATERIAL as a foundation for your knowledge.
-                2. If the user asks a question NOT in the material, use your general knowledge/search to answer.
-                3. Keep responses concise and conversational.`
+                2. If the user asks a question NOT in the material, answer politely based on general knowledge.
+                3. Keep responses concise and conversational.`;
+        }
+
+        const sessionPromise = client.connect({
+            model: LIVE_MODEL_NAME,
+            config: {
+                responseModalities: [Modality.AUDIO],
+                // Removed tools: [{ googleSearch: {} }] as it causes handshake errors in Live API
+                speechConfig: {
+                    voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } } 
+                },
+                systemInstruction: sysInstruction
             },
             callbacks: {
                 onopen: () => {
@@ -149,7 +160,6 @@ const LiveSession: React.FC<Props> = ({ notebook }) => {
                         const rawBytes = base64ToUint8Array(audioData);
                         
                         // Create audio buffer (raw PCM 24kHz 1 channel)
-                        // Use Math.floor to ensure integer length
                         const buffer = ctx.createBuffer(1, Math.floor(rawBytes.length / 2), 24000);
                         const channelData = buffer.getChannelData(0);
                         const view = new DataView(rawBytes.buffer);
@@ -185,14 +195,13 @@ const LiveSession: React.FC<Props> = ({ notebook }) => {
                 },
                 onclose: () => {
                     console.log("Session Closed");
-                    setStatus('idle');
+                    setStatus('setup');
                     setConnected(false);
                     activeSessionRef.current = null;
                 },
                 onerror: (err) => {
                     console.error("Session Error", err);
-                    setErrorMsg("Connection unstable.");
-                    // Don't immediately kill UI, try to recover or show error
+                    setErrorMsg("Connection unstable or API error.");
                 }
             }
         });
@@ -223,7 +232,7 @@ const LiveSession: React.FC<Props> = ({ notebook }) => {
         audioContextRef.current = null;
     }
     
-    setStatus('idle');
+    setStatus('setup');
     setConnected(false);
   };
 
@@ -316,10 +325,59 @@ const LiveSession: React.FC<Props> = ({ notebook }) => {
     return () => cancelAnimationFrame(animationFrameId);
   }, [status]);
 
+  if (status === 'setup') {
+      return (
+          <div className="flex flex-col items-center justify-center min-h-[400px] h-full glass-panel rounded-2xl p-8 relative overflow-hidden bg-slate-950 mx-4 md:mx-0">
+                <div className="relative z-10 max-w-md w-full">
+                    <h2 className="text-2xl font-bold text-white mb-6 text-center">Configure Live Session</h2>
+                    
+                    <div className="space-y-4">
+                        {/* Mode Selection */}
+                        <div className="grid grid-cols-2 gap-3">
+                            <button 
+                                onClick={() => setSessionMode('Standard')}
+                                className={`p-4 rounded-xl border transition-all flex flex-col items-center gap-2 ${sessionMode === 'Standard' ? `bg-${theme.colors.primary}-600/20 border-${theme.colors.primary}-500 text-white` : 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800'}`}
+                            >
+                                <Users size={24} />
+                                <span className="font-bold text-sm">Guest Chat</span>
+                            </button>
+                            <button 
+                                onClick={() => setSessionMode('Arena')}
+                                className={`p-4 rounded-xl border transition-all flex flex-col items-center gap-2 ${sessionMode === 'Arena' ? 'bg-rose-500/20 border-rose-500 text-white' : 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800'}`}
+                            >
+                                <Swords size={24} />
+                                <span className="font-bold text-sm">Debate Arena</span>
+                            </button>
+                        </div>
+
+                        {/* Arena Specific Options */}
+                        {sessionMode === 'Arena' && (
+                            <div className="animate-in fade-in slide-in-from-top-2 p-4 bg-slate-900 rounded-xl border border-white/10">
+                                <label className="text-xs text-slate-500 uppercase font-bold mb-3 block">Choose Your Role</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    <button onClick={() => setDebateRole('Pro')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${debateRole === 'Pro' ? 'bg-green-500/20 border-green-500 text-green-400' : 'bg-slate-800 border-transparent text-slate-400'}`}>Pro</button>
+                                    <button onClick={() => setDebateRole('Con')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${debateRole === 'Con' ? 'bg-red-500/20 border-red-500 text-red-400' : 'bg-slate-800 border-transparent text-slate-400'}`}>Con</button>
+                                    <button onClick={() => setDebateRole('Moderator')} className={`py-2 px-1 rounded-lg text-xs font-bold border transition-all ${debateRole === 'Moderator' ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-slate-800 border-transparent text-slate-400'}`}>Mod</button>
+                                </div>
+                            </div>
+                        )}
+
+                        <button 
+                            onClick={connect}
+                            className={`w-full py-4 mt-4 bg-gradient-to-r ${sessionMode === 'Arena' ? 'from-rose-600 to-orange-600' : `from-${theme.colors.primary}-600 to-${theme.colors.secondary}-600`} text-white rounded-xl font-bold text-lg shadow-lg hover:scale-[1.02] transition-transform`}
+                        >
+                            Start Session
+                        </button>
+                    </div>
+                </div>
+          </div>
+      );
+  }
+
   return (
     <div ref={containerRef} className="flex flex-col items-center justify-center min-h-[400px] h-[60vh] md:h-[500px] glass-panel rounded-2xl relative overflow-hidden bg-slate-950 mx-4 md:mx-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black z-0"></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-cyan-900/20 blur-[80px] rounded-full animate-pulse"></div>
+        <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 ${sessionMode === 'Arena' ? 'bg-rose-900/20' : 'bg-cyan-900/20'} blur-[80px] rounded-full animate-pulse`}></div>
         
         <div className="relative z-10 flex flex-col items-center gap-8 w-full">
             <div className="relative w-full h-[280px] md:h-[320px] flex items-center justify-center">
@@ -327,27 +385,27 @@ const LiveSession: React.FC<Props> = ({ notebook }) => {
                  <canvas ref={canvasRef} width={400} height={320} className="z-10 w-full max-w-[400px] h-full object-contain" />
                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center pointer-events-none">
                       <div className={`p-4 rounded-full transition-all duration-500 ${status === 'live' ? 'bg-slate-900/80 shadow-[0_0_30px_rgba(34,211,238,0.3)] backdrop-blur-md border border-cyan-500/30' : 'bg-slate-800'}`}>
-                          {status === 'live' ? <Activity className="text-cyan-400 w-8 h-8 animate-pulse" /> : <MicOff className="text-slate-500 w-8 h-8" />}
+                          {status === 'live' ? <Activity className={sessionMode === 'Arena' ? "text-rose-400 w-8 h-8 animate-pulse" : "text-cyan-400 w-8 h-8 animate-pulse"} /> : <MicOff className="text-slate-500 w-8 h-8" />}
                       </div>
                  </div>
             </div>
 
             <div className="text-center -mt-8 z-20 px-4">
                 <h2 className="text-xl md:text-2xl font-bold mb-2 text-white drop-shadow-[0_0_10px_rgba(34,211,238,0.5)]">
-                    {status === 'idle' ? 'Start Live Session' : status === 'connecting' ? 'Establishing Uplink...' : status === 'live' ? 'Live on Air' : 'Connection Failed'}
+                    {status === 'connecting' ? 'Establishing Uplink...' : sessionMode === 'Arena' ? 'DEBATE ARENA LIVE' : 'Live on Air'}
                 </h2>
                 <p className="text-slate-400 max-w-sm mx-auto text-sm font-medium">
-                    {status === 'idle' ? 'Join the conversation. Interrupt anytime.' : status === 'live' ? 'Listening to you... (Speak naturally)' : errorMsg || 'Calibrating neural audio stream...'}
+                    {status === 'live' ? (sessionMode === 'Arena' ? 'Defend your stance. The AI hosts are ready.' : 'Listening to you... (Speak naturally)') : errorMsg || 'Calibrating neural audio stream...'}
                 </p>
             </div>
 
             <div className="flex gap-4 z-20">
-                {status === 'idle' || status === 'error' ? (
+                {status === 'error' ? (
                     <button 
-                        onClick={connect}
-                        className="px-6 md:px-8 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-full font-bold text-base md:text-lg hover:shadow-[0_0_30px_rgba(34,211,238,0.4)] hover:scale-105 transition-all flex items-center gap-2 border border-white/10"
+                        onClick={() => setStatus('setup')}
+                        className="px-6 md:px-8 py-3 bg-slate-800 text-white rounded-full font-bold border border-white/10"
                     >
-                        <Mic size={20} /> Go Live
+                        Retry Setup
                     </button>
                 ) : (
                     <>
